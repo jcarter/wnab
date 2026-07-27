@@ -99,6 +99,24 @@ describe('aggregation domain logic', () => {
       ...GROCERIES_EXPECTED_AGGREGATE,
     });
     expect(result.totals).toEqual(GROCERIES_EXPECTED_AGGREGATE);
+    expect(result.planTotals).toEqual([
+      {
+        planId: 'plan-a',
+        planName: 'Alex Plan',
+        budgeted: 450000,
+        activity: -123450,
+        spent: 123450,
+        available: 326550,
+      },
+      {
+        planId: 'plan-b',
+        planName: 'Blair Plan',
+        budgeted: 500000,
+        activity: -200000,
+        spent: 200000,
+        available: 300000,
+      },
+    ]);
     expect(result.unmappedSources.map((source) => source.sourceId)).toContain('plan-a:cat-a-dining');
     expect(result.unmappedSources.map((source) => source.sourceId)).not.toContain('plan-a:cat-a-deleted');
   });

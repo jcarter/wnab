@@ -74,6 +74,17 @@ export function aggregateMappedCategories(sourceCategories, mapping) {
   const sourceById = new Map(sourceCategories.map((source) => [source.sourceId, source]));
   const assignedSourceIds = new Set();
   const totals = emptySums();
+  const totalsByPlan = new Map();
+
+  for (const source of sourceCategories) {
+    if (!totalsByPlan.has(source.planId)) {
+      totalsByPlan.set(source.planId, {
+        planId: source.planId,
+        planName: source.planName,
+        ...emptySums(),
+      });
+    }
+  }
 
   const rows = mapping.unifiedCategories.map((unifiedCategory) => {
     const sums = emptySums();
@@ -96,6 +107,7 @@ export function aggregateMappedCategories(sourceCategories, mapping) {
       sources.push(source);
       addSourceToSums(sums, source);
       addSourceToSums(totals, source);
+      addSourceToSums(totalsByPlan.get(source.planId), source);
     }
 
     return {
@@ -118,5 +130,6 @@ export function aggregateMappedCategories(sourceCategories, mapping) {
     rows,
     unmappedSources,
     totals,
+    planTotals: [...totalsByPlan.values()],
   };
 }

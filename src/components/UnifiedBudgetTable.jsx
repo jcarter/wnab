@@ -51,6 +51,16 @@ function monthName(month) {
   return new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(new Date(month));
 }
 
+function planShare(amount, total) {
+  if (total === 0) return null;
+  return (amount / total) * 100;
+}
+
+function formatPercentage(percentage) {
+  if (percentage === null) return '—';
+  return `${new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(percentage)}%`;
+}
+
 function AvailableAmount({ value, currencyFormat }) {
   return (
     <span className={`available-amount${value < 0 ? ' available-negative' : value > 0 ? ' available-positive' : ''}`}>
@@ -65,6 +75,14 @@ export function UnifiedBudgetTable({ aggregate, currencyFormat, selectedMonth, o
   const mappedSourceCount = aggregate.rows.reduce((count, row) => count + row.sources.length, 0);
   const totalSourceCount = mappedSourceCount + aggregate.unmappedSources.length;
   const coverage = totalSourceCount === 0 ? 0 : Math.round((mappedSourceCount / totalSourceCount) * 100);
+  const planContributions = aggregate.planTotals.map((plan) => {
+    const percentage = planShare(plan.budgeted, aggregate.totals.budgeted);
+    return {
+      ...plan,
+      percentage,
+      percentageLabel: formatPercentage(percentage),
+    };
+  });
   const visibleRows = aggregate.rows.filter((row) => {
     if (activeFilter === 'underfunded') return row.available < 0;
     if (activeFilter === 'available') return row.available > 0;
@@ -230,6 +248,30 @@ export function UnifiedBudgetTable({ aggregate, currencyFormat, selectedMonth, o
               <div><dt>Activity</dt><dd>{formatMilliunits(aggregate.totals.activity, currencyFormat)}</dd></div>
               <div className="summary-total"><dt>Combined Available</dt><dd>{formatMilliunits(aggregate.totals.available, currencyFormat)}</dd></div>
             </dl>
+            <section className="summary-contributions" aria-labelledby="plan-contributions-heading">
+              <div className="summary-contributions-heading">
+                <h3 id="plan-contributions-heading">Assigned by plan</h3>
+                <span>Mapped total</span>
+              </div>
+              <ul>
+                {planContributions.map((plan) => (
+                  <li key={plan.planId}>
+                    <div className="plan-contribution-line">
+                      <strong>{plan.planName}</strong>
+                      <span>
+                        <span className="money">{formatMilliunits(plan.budgeted, currencyFormat)}</span>
+                        <small>{plan.percentageLabel}</small>
+                      </span>
+                    </div>
+                    <progress
+                      aria-label={`${plan.planName} contributes ${plan.percentageLabel} of assigned total`}
+                      max="100"
+                      value={plan.percentage === null ? 0 : Math.min(100, Math.max(0, plan.percentage))}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
           </section>
 
           <section className="summary-panel coverage-panel">

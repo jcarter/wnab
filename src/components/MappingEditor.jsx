@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { parseImportedMapping, serializeMapping } from '../domain/mappingStorage.js';
 
 function sourceLabel(source) {
@@ -35,6 +35,10 @@ export function MappingEditor({ sourceCategories, mapping, planIds, onMappingCha
   const [query, setQuery] = useState('');
   const [selectedSourceIds, setSelectedSourceIds] = useState([]);
   const [importFile, setImportFile] = useState(null);
+  const [draggedCategoryId, setDraggedCategoryId] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null);
+  const [reorderAnnouncement, setReorderAnnouncement] = useState('');
+  const dragState = useRef({ sourceId: null, targetId: null, position: null });
   const sourceGroups = useMemo(() => groupSources(sourceCategories), [sourceCategories]);
   const sourceById = useMemo(() => new Map(sourceCategories.map((source) => [source.sourceId, source])), [sourceCategories]);
   const assignedSourceIds = new Set(mapping.unifiedCategories.flatMap((category) => category.sourceIds));
@@ -91,6 +95,91 @@ export function MappingEditor({ sourceCategories, mapping, planIds, onMappingCha
       ...mapping,
       unifiedCategories: mapping.unifiedCategories.filter((category) => category.id !== categoryId),
     });
+  }
+
+  function announceMove(category, position) {
+    setReorderAnnouncement(
+      `${category.groupName} / ${category.name} moved to position ${position} of ${mapping.unifiedCategories.length}.`,
+    );
+  }
+
+  function moveCategory(categoryId, targetIndex) {
+    const currentIndex = mapping.unifiedCategories.findIndex((category) => category.id === categoryId);
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= mapping.unifiedCategories.length || currentIndex === targetIndex) {
+      return;
+    }
+
+    const nextCategories = [...mapping.unifiedCategories];
+    const [movedCategory] = nextCategories.splice(currentIndex, 1);
+    nextCategories.splice(targetIndex, 0, movedCategory);
+    onMappingChange({ ...mapping, unifiedCategories: nextCategories });
+    announceMove(movedCategory, targetIndex + 1);
+  }
+
+  function dropCategory(sourceId, targetId, position) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+
+    const currentIndex = mapping.unifiedCategories.findIndex((category) => category.id === sourceId);
+    const targetIndex = mapping.unifiedCategories.findIndex((category) => category.id === targetId);
+    if (currentIndex < 0 || targetIndex < 0) return;
+
+    let insertionIndex = targetIndex + (position === 'after' ? 1 : 0);
+    if (currentIndex < insertionIndex) insertionIndex -= 1;
+    moveCategory(sourceId, insertionIndex);
+  }
+
+  function clearDrag() {
+    dragState.current = { sourceId: null, targetId: null, position: null };
+    setDraggedCategoryId(null);
+    setDropTarget(null);
+  }
+
+  function handleDragPointerDown(event, categoryId) {
+    if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    dragState.current = { sourceId: categoryId, targetId: null, position: null };
+    setDraggedCategoryId(categoryId);
+    setDropTarget(null);
+  }
+
+  function handleDragPointerMove(event) {
+    if (!dragState.current.sourceId) return;
+    event.preventDefault();
+
+    const element = document.elementFromPoint?.(event.clientX, event.clientY);
+    const categoryElement = element?.closest?.('[data-category-id]');
+    const targetId = categoryElement?.dataset.categoryId;
+    if (!targetId || targetId === dragState.current.sourceId) {
+      dragState.current.targetId = null;
+      dragState.current.position = null;
+      setDropTarget(null);
+      return;
+    }
+
+    const bounds = categoryElement.getBoundingClientRect();
+    const position = event.clientY < bounds.top + bounds.height / 2 ? 'before' : 'after';
+    dragState.current.targetId = targetId;
+    dragState.current.position = position;
+    setDropTarget({ categoryId: targetId, position });
+  }
+
+  function handleDragPointerUp(event) {
+    if (!dragState.current.sourceId) return;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    dropCategory(
+      dragState.current.sourceId,
+      dragState.current.targetId,
+      dragState.current.position,
+    );
+    clearDrag();
+  }
+
+  function handleReorderKeyDown(event, categoryId) {
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    const currentIndex = mapping.unifiedCategories.findIndex((category) => category.id === categoryId);
+    const offset = event.key === 'ArrowUp' ? -1 : 1;
+    moveCategory(categoryId, currentIndex + offset);
   }
 
   function handleExport() {
@@ -212,35 +301,59 @@ export function MappingEditor({ sourceCategories, mapping, planIds, onMappingCha
 
           {mapping.unifiedCategories.length > 0 ? (
             <div className="mapped-list">
-              {mapping.unifiedCategories.map((category) => (
-                <article key={category.id} className="mapped-category">
-                  <div className="mapped-category-heading">
-                    <div>
-                      <span>{category.groupName}</span>
-                      <strong>{category.name}</strong>
+              {mapping.unifiedCategories.map((category) => {
+                const dropPosition = dropTarget?.categoryId === category.id ? dropTarget.position : null;
+                return (
+                  <article
+                    key={category.id}
+                    data-category-id={category.id}
+                    className={`mapped-category${draggedCategoryId === category.id ? ' mapped-category-dragging' : ''}${dropPosition ? ` mapped-category-drop-${dropPosition}` : ''}`}
+                  >
+                    <div className="mapped-category-heading">
+                      <div>
+                        <span>{category.groupName}</span>
+                        <strong>{category.name}</strong>
+                      </div>
+                      <div className="mapped-category-actions">
+                        <button
+                          type="button"
+                          className="delete-button"
+                          onClick={() => deleteCategory(category.id)}
+                          aria-label={`Delete ${category.name}`}
+                        >
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          className="reorder-handle"
+                          aria-label={`Reorder ${category.groupName} / ${category.name}. Drag or use arrow keys.`}
+                          title="Drag to reorder"
+                          disabled={mapping.unifiedCategories.length < 2}
+                          onPointerDown={(event) => handleDragPointerDown(event, category.id)}
+                          onPointerMove={handleDragPointerMove}
+                          onPointerUp={handleDragPointerUp}
+                          onPointerCancel={clearDrag}
+                          onKeyDown={(event) => handleReorderKeyDown(event, category.id)}
+                        >
+                          <span aria-hidden="true"><i /><i /><i /></span>
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      className="delete-button"
-                      onClick={() => deleteCategory(category.id)}
-                      aria-label={`Delete ${category.name}`}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                  <div className="mapped-source-list">
-                    {category.sourceIds.map((sourceId) => {
-                      const source = sourceById.get(sourceId);
-                      return (
-                        <div key={sourceId} className="mapped-source">
-                          <span>{source ? sourceLabel(source) : `Missing source / ${sourceId}`}</span>
-                          <button type="button" onClick={() => removeSource(category.id, sourceId)} aria-label={`Remove ${sourceId}`}>Remove</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </article>
-              ))}
+                    <div className="mapped-source-list">
+                      {category.sourceIds.map((sourceId) => {
+                        const source = sourceById.get(sourceId);
+                        return (
+                          <div key={sourceId} className="mapped-source">
+                            <span>{source ? sourceLabel(source) : `Missing source / ${sourceId}`}</span>
+                            <button type="button" onClick={() => removeSource(category.id, sourceId)} aria-label={`Remove ${sourceId}`}>Remove</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </article>
+                );
+              })}
+              <p className="sr-only" aria-live="polite">{reorderAnnouncement}</p>
             </div>
           ) : (
             <div className="mapping-empty-state">

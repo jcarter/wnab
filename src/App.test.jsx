@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App.jsx';
 import {
@@ -219,6 +219,23 @@ describe('Together Budget app', () => {
     expect(screen.getByText(/excluded until mapped/i)).toBeInTheDocument();
   });
 
+  test('shows each plan assigned total and percentage of the mapped total', async () => {
+    installHappyPathFetch({ mapping: GROCERIES_MAPPING });
+
+    await connectAndLoadMonth();
+
+    const contributions = screen.getByRole('region', { name: 'Assigned by plan' });
+    expect(within(contributions).getByText('Alex Plan')).toBeInTheDocument();
+    expect(within(contributions).getByText('$450.00')).toBeInTheDocument();
+    expect(within(contributions).getByText('47.4%')).toBeInTheDocument();
+    expect(within(contributions).getByText('Blair Plan')).toBeInTheDocument();
+    expect(within(contributions).getByText('$500.00')).toBeInTheDocument();
+    expect(within(contributions).getByText('52.6%')).toBeInTheDocument();
+    expect(within(contributions).getByRole('progressbar', {
+      name: 'Alex Plan contributes 47.4% of assigned total',
+    })).toBeInTheDocument();
+  });
+
   test('renders a friendly access-token error for 401 YNAB envelopes', async () => {
     installFetch({
       [`${API_BASE}/plans`]: jsonResponse({
@@ -334,5 +351,99 @@ describe('Together Budget app', () => {
     await user.click(screen.getByRole('button', { name: 'Budget' }));
     expect(screen.getByRole('columnheader', { name: 'Category' })).toBeInTheDocument();
     expect(screen.getByLabelText('Your plan')).toBeInTheDocument();
+  });
+
+  test('reorders top-level mapped categories with the keyboard and persists the order', async () => {
+    const mapping = {
+      ...GROCERIES_MAPPING,
+      unifiedCategories: [
+        ...GROCERIES_MAPPING.unifiedCategories,
+        {
+          id: 'unified-dining-out',
+          groupName: 'Living Expenses',
+          name: 'Dining Out',
+          sourceIds: ['plan-a:cat-a-dining', 'plan-b:cat-b-dining'],
+        },
+      ],
+    };
+    installHappyPathFetch({ mapping });
+    const user = userEvent.setup();
+
+    await connectAndLoadMonth();
+    await user.click(screen.getByRole('button', { name: 'Map categories' }));
+    const groceriesHandle = screen.getByRole('button', {
+      name: 'Reorder Living Expenses / Groceries. Drag or use arrow keys.',
+    });
+    groceriesHandle.focus();
+    await user.keyboard('{ArrowDown}');
+
+    const reorderHandles = screen.getAllByRole('button', { name: /^Reorder / });
+    expect(reorderHandles[0]).toHaveAccessibleName(
+      'Reorder Living Expenses / Dining Out. Drag or use arrow keys.',
+    );
+    expect(reorderHandles[1]).toHaveAccessibleName(
+      'Reorder Living Expenses / Groceries. Drag or use arrow keys.',
+    );
+    expect(await screen.findByText('Living Expenses / Groceries moved to position 2 of 2.'))
+      .toBeInTheDocument();
+
+    await waitFor(() => {
+      const saveCall = globalThis.fetch.mock.calls.findLast(
+        ([url, options]) => url === '/api/mappings' && options?.method === 'PUT',
+      );
+      expect(JSON.parse(saveCall[1].body).mapping.unifiedCategories.map((category) => category.id))
+        .toEqual(['unified-dining-out', 'unified-groceries']);
+    });
+  });
+
+  test('drags a top-level mapped category to a new position', async () => {
+    const mapping = {
+      ...GROCERIES_MAPPING,
+      unifiedCategories: [
+        ...GROCERIES_MAPPING.unifiedCategories,
+        {
+          id: 'unified-dining-out',
+          groupName: 'Living Expenses',
+          name: 'Dining Out',
+          sourceIds: ['plan-a:cat-a-dining', 'plan-b:cat-b-dining'],
+        },
+      ],
+    };
+    installHappyPathFetch({ mapping });
+    const user = userEvent.setup();
+
+    await connectAndLoadMonth();
+    await user.click(screen.getByRole('button', { name: 'Map categories' }));
+    const groceriesHandle = screen.getByRole('button', {
+      name: 'Reorder Living Expenses / Groceries. Drag or use arrow keys.',
+    });
+    const diningCard = screen.getByRole('button', {
+      name: 'Reorder Living Expenses / Dining Out. Drag or use arrow keys.',
+    }).closest('article');
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => diningCard),
+    });
+    vi.spyOn(diningCard, 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      height: 100,
+    });
+
+    fireEvent.pointerDown(groceriesHandle, {
+      pointerId: 1,
+      isPrimary: true,
+      pointerType: 'mouse',
+      button: 0,
+    });
+    fireEvent.pointerMove(groceriesHandle, { pointerId: 1, clientX: 20, clientY: 180 });
+    fireEvent.pointerUp(groceriesHandle, { pointerId: 1 });
+
+    const reorderHandles = screen.getAllByRole('button', { name: /^Reorder / });
+    expect(reorderHandles[0]).toHaveAccessibleName(
+      'Reorder Living Expenses / Dining Out. Drag or use arrow keys.',
+    );
+    expect(reorderHandles[1]).toHaveAccessibleName(
+      'Reorder Living Expenses / Groceries. Drag or use arrow keys.',
+    );
   });
 });
