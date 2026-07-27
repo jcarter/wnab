@@ -1,5 +1,9 @@
 # Together Budget
 
+![Together Budget dashboard with placeholder data](docs/together-budget-dashboard.jpg)
+
+_Dashboard shown with placeholder data._
+
 ## What it does
 
 Together Budget is a small shared, read-only YNAB dashboard that combines two selected plans through manual category mappings.
