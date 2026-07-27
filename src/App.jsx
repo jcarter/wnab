@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { TokenGate } from './components/TokenGate.jsx';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { HeaderMonthPicker } from './components/HeaderMonthPicker.jsx';
 import { PlanMonthSelector } from './components/PlanMonthSelector.jsx';
 import { MappingEditor } from './components/MappingEditor.jsx';
 import { UnifiedBudgetTable } from './components/UnifiedBudgetTable.jsx';
 import { StatusMessage } from './components/StatusMessage.jsx';
+import { PasswordGate } from './components/PasswordGate.jsx';
 import { createYnabClient, YnabApiError } from './api/ynabClient.js';
+import { createAppStorageClient } from './api/appStorageClient.js';
+import { createAuthClient } from './api/authClient.js';
 import { formatMilliunits } from './domain/formatMoney.js';
 import {
   aggregateMappedCategories,
@@ -13,9 +15,10 @@ import {
   getSourceCategories,
   validateCompatibleCurrencies,
 } from './domain/aggregation.js';
-import { loadMapping, saveMapping } from './domain/mappingStorage.js';
-
+const appStorage = createAppStorageClient();
+const authClient = createAuthClient();
 const THEME_STORAGE_KEY = 'ynabTogether.theme.v1';
+const MONTH_STORAGE_PREFIX = 'ynabTogether.selectedMonth.v1';
 const VALID_THEMES = new Set(['system', 'light', 'dark']);
 
 function getStoredTheme() {
@@ -29,8 +32,11 @@ function getStoredTheme() {
 
 function friendlyErrorMessage(error) {
   if (error instanceof YnabApiError || typeof error?.status === 'number') {
+    if (error.name === 'app_error' && error.detail) {
+      return error.detail;
+    }
     if (error.status === 401 || error.status === 403) {
-      return 'YNAB rejected the access token. Check the token and try again.';
+      return 'YNAB rejected the server access token. Check YNAB_ACCESS_TOKEN and try again.';
     }
     if (error.status === 429) {
       return 'YNAB rate limit reached. Wait and try again.';
@@ -48,13 +54,41 @@ function findPlan(plans, planId) {
   return plans.find((plan) => plan.id === planId) ?? null;
 }
 
+function getMonthStorageKey(planIds) {
+  return `${MONTH_STORAGE_PREFIX}.${[...planIds].sort().join('__')}`;
+}
+
+function getStoredMonth(planIds) {
+  try {
+    const month = globalThis.localStorage?.getItem(getMonthStorageKey(planIds));
+    return /^\d{4}-\d{2}-\d{2}$/.test(month ?? '') ? month : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveStoredMonth(planIds, month) {
+  try {
+    globalThis.localStorage?.setItem(getMonthStorageKey(planIds), month);
+  } catch {
+    // The selected month still applies while this tab is open.
+  }
+}
+
+function isAuthenticationError(error) {
+  return error?.status === 401 && error?.name === 'app_error';
+}
+
 function BrandMark() {
   return <span className="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>;
 }
 
 export default function App() {
   const [theme, setTheme] = useState(getStoredTheme);
-  const [accessToken, setAccessToken] = useState('');
+  const [authState, setAuthState] = useState('checking');
+  const [authConfigured, setAuthConfigured] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [client, setClient] = useState(null);
   const [plans, setPlans] = useState([]);
   const [leftPlanId, setLeftPlanId] = useState('');
@@ -69,6 +103,7 @@ export default function App() {
   const [loadingStep, setLoadingStep] = useState(null);
   const [retryStep, setRetryStep] = useState(null);
   const [activeView, setActiveView] = useState('budget');
+  const hasStarted = useRef(false);
 
   const leftPlan = findPlan(plans, leftPlanId);
   const rightPlan = findPlan(plans, rightPlanId);
@@ -93,15 +128,39 @@ export default function App() {
     } else {
       document.documentElement.dataset.theme = theme;
     }
-
     try {
       globalThis.localStorage?.setItem(THEME_STORAGE_KEY, theme);
     } catch {
-      // The theme still applies for this tab when storage is unavailable.
+      // The selected theme still applies while this tab is open.
     }
   }, [theme]);
 
+  useEffect(() => {
+    if (hasStarted.current) return;
+    hasStarted.current = true;
+
+    authClient.getStatus()
+      .then((result) => {
+        setAuthConfigured(result.passwordConfigured);
+        if (result.authenticated) {
+          setAuthState('authenticated');
+          handleConnect();
+        } else {
+          setAuthState('login');
+        }
+      })
+      .catch((error) => {
+        setAuthError(error.message);
+        setAuthState('login');
+      });
+  }, []);
+
   function setError(error, step) {
+    if (isAuthenticationError(error)) {
+      setAuthState('login');
+      setAuthError('Your session expired. Sign in again.');
+      return;
+    }
     setStatus({ type: 'error', message: friendlyErrorMessage(error) });
     setRetryStep(step);
   }
@@ -130,7 +189,10 @@ export default function App() {
         ...getSourceCategories(nextLeftPlan, leftMonthDetail),
         ...getSourceCategories(nextRightPlan, rightMonthDetail),
       ];
-      const { mapping: loadedMapping, error } = loadMapping([nextLeftPlan.id, nextRightPlan.id]);
+      const { mapping: loadedMapping, error } = await appStorage.loadMapping([
+        nextLeftPlan.id,
+        nextRightPlan.id,
+      ]);
       setSourceCategories(nextSourceCategories);
       setCurrencyFormat(currency.currencyFormat);
       setMapping(loadedMapping);
@@ -142,7 +204,12 @@ export default function App() {
     }
   }
 
-  async function loadMonthsForPair(apiClient, nextLeftPlanId, nextRightPlanId, availablePlans = plans) {
+  async function loadMonthsForPair(
+    apiClient,
+    nextLeftPlanId,
+    nextRightPlanId,
+    availablePlans = plans,
+  ) {
     if (!apiClient || !nextLeftPlanId || !nextRightPlanId || nextLeftPlanId === nextRightPlanId) return;
 
     setLoadingStep('months');
@@ -157,17 +224,20 @@ export default function App() {
         apiClient.getPlanMonths(nextRightPlanId),
       ]);
       const sharedMonths = getSelectableMonths(leftData.months, rightData.months);
+      const preferredMonth = getStoredMonth([nextLeftPlanId, nextRightPlanId]);
+      const nextMonth = sharedMonths.includes(preferredMonth) ? preferredMonth : sharedMonths[0] ?? '';
       setLeftMonths(leftData.months);
       setRightMonths(rightData.months);
-      setSelectedMonth(sharedMonths[0] ?? '');
+      setSelectedMonth(nextMonth);
       if (sharedMonths.length === 0) {
         setStatus({ type: 'error', message: 'Selected plans have no shared months.' });
         return;
       }
+      saveStoredMonth([nextLeftPlanId, nextRightPlanId], nextMonth);
 
       const nextLeftPlan = findPlan(availablePlans, nextLeftPlanId);
       const nextRightPlan = findPlan(availablePlans, nextRightPlanId);
-      await loadMonthData(apiClient, nextLeftPlan, nextRightPlan, sharedMonths[0]);
+      await loadMonthData(apiClient, nextLeftPlan, nextRightPlan, nextMonth);
     } catch (error) {
       setError(error, 'months');
     } finally {
@@ -175,28 +245,43 @@ export default function App() {
     }
   }
 
-  async function handleConnect(token) {
-    const apiClient = createYnabClient({ token });
+  async function handleConnect() {
+    const apiClient = createYnabClient({});
     setLoadingStep('plans');
     setRetryStep(null);
     setStatus(null);
-    setAccessToken(token);
     setClient(apiClient);
 
     try {
-      const planData = await apiClient.getPlans();
+      const [planData, selectedBudgets] = await Promise.all([
+        apiClient.getPlans(),
+        appStorage.loadSelectedBudgets(),
+      ]);
       if (planData.plans.length < 2) {
         setPlans(planData.plans);
         setStatus({ type: 'error', message: 'At least two YNAB plans are required.' });
         return;
       }
 
-      const nextLeftPlanId = planData.plans[0].id;
-      const nextRightPlanId = planData.plans[1].id;
+      const savedLeftPlan = findPlan(planData.plans, selectedBudgets?.leftPlanId);
+      const savedRightPlan = findPlan(planData.plans, selectedBudgets?.rightPlanId);
+      const hasValidSelection = Boolean(
+        savedLeftPlan && savedRightPlan && savedLeftPlan.id !== savedRightPlan.id,
+      );
+      const nextLeftPlanId = hasValidSelection ? savedLeftPlan.id : planData.plans[0].id;
+      const nextRightPlanId = hasValidSelection ? savedRightPlan.id : planData.plans[1].id;
       setPlans(planData.plans);
       setLeftPlanId(nextLeftPlanId);
       setRightPlanId(nextRightPlanId);
-      await loadMonthsForPair(apiClient, nextLeftPlanId, nextRightPlanId, planData.plans);
+      if (!hasValidSelection) {
+        persistSelectedBudgets({ leftPlanId: nextLeftPlanId, rightPlanId: nextRightPlanId });
+      }
+      await loadMonthsForPair(
+        apiClient,
+        nextLeftPlanId,
+        nextRightPlanId,
+        planData.plans,
+      );
     } catch (error) {
       setError(error, 'plans');
     } finally {
@@ -207,24 +292,37 @@ export default function App() {
   async function handleLeftPlanChange(planId) {
     setLeftPlanId(planId);
     setActiveView('budget');
+    persistSelectedBudgets({ leftPlanId: planId, rightPlanId });
     await loadMonthsForPair(client, planId, rightPlanId);
   }
 
   async function handleRightPlanChange(planId) {
     setRightPlanId(planId);
     setActiveView('budget');
+    persistSelectedBudgets({ leftPlanId, rightPlanId: planId });
     await loadMonthsForPair(client, leftPlanId, planId);
   }
 
   async function handleMonthSelect(month) {
     setSelectedMonth(month);
     setActiveView('budget');
+    saveStoredMonth([leftPlanId, rightPlanId], month);
     await loadMonthData(client, leftPlan, rightPlan, month);
   }
 
-  function handleMappingChange(nextMapping) {
+  function persistSelectedBudgets(selectedBudgets) {
+    appStorage.saveSelectedBudgets(selectedBudgets).catch((error) => {
+      setError(error, null);
+    });
+  }
+
+  async function handleMappingChange(nextMapping) {
     setMapping(nextMapping);
-    saveMapping(nextMapping);
+    try {
+      await appStorage.saveMapping(nextMapping);
+    } catch (error) {
+      setError(error, null);
+    }
   }
 
   function handleMappingMessage(message, type = 'success') {
@@ -234,7 +332,7 @@ export default function App() {
 
   function handleRetry() {
     if (retryStep === 'plans') {
-      handleConnect(accessToken);
+      handleConnect();
     } else if (retryStep === 'months') {
       loadMonthsForPair(client, leftPlanId, rightPlanId);
     } else if (retryStep === 'month') {
@@ -242,8 +340,25 @@ export default function App() {
     }
   }
 
-  function handleDisconnect() {
-    setAccessToken('');
+  function handleThemeChange(event) {
+    setTheme(event.target.value);
+  }
+
+  async function handleLogin(password) {
+    setAuthLoading(true);
+    setAuthError('');
+    try {
+      await authClient.login(password);
+      setAuthState('authenticated');
+      await handleConnect();
+    } catch (error) {
+      setAuthError(error.message);
+    } finally {
+      setAuthLoading(false);
+    }
+  }
+
+  function resetBudget() {
     setClient(null);
     setPlans([]);
     setLeftPlanId('');
@@ -258,6 +373,47 @@ export default function App() {
     setLoadingStep(null);
     setRetryStep(null);
     setActiveView('budget');
+  }
+
+  async function handleLogout() {
+    try {
+      await authClient.logout();
+    } finally {
+      resetBudget();
+      setAuthError('');
+      setAuthState('login');
+    }
+  }
+
+  if (authState !== 'authenticated') {
+    return (
+      <main className="app-shell">
+        <header className="app-header">
+          <div className="brand-lockup"><BrandMark /><h1>Together</h1></div>
+          <div />
+          <div className="header-meta">
+            <label className="theme-picker">
+              <span className="sr-only">Theme</span>
+              <select aria-label="Theme" value={theme} onChange={handleThemeChange}>
+                <option value="system">System</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+          </div>
+        </header>
+        {authState === 'checking' ? (
+          <section className="onboarding-layout"><p>Checking access…</p></section>
+        ) : (
+          <PasswordGate
+            onSubmit={handleLogin}
+            loading={authLoading}
+            error={authError}
+            configured={authConfigured}
+          />
+        )}
+      </main>
+    );
   }
 
   return (
@@ -284,13 +440,14 @@ export default function App() {
         <div className="header-meta">
           <label className="theme-picker">
             <span className="sr-only">Theme</span>
-            <select aria-label="Theme" value={theme} onChange={(event) => setTheme(event.target.value)}>
+            <select aria-label="Theme" value={theme} onChange={handleThemeChange}>
               <option value="system">System</option>
               <option value="light">Light</option>
               <option value="dark">Dark</option>
             </select>
           </label>
           <span className="privacy-badge">{isConnected ? '2 plans connected' : 'Read only'}</span>
+          <button type="button" className="change-connection-button" onClick={handleLogout}>Sign out</button>
         </div>
       </header>
 
@@ -303,13 +460,28 @@ export default function App() {
             </p>
           </div>
           <div className="connect-column">
-            <TokenGate onSubmit={handleConnect} loading={loadingStep === 'plans'} />
+            <section className="connect-card" aria-live="polite">
+              <div className="connect-card-header">
+                <div>
+                  <h2>{loadingStep === 'plans' ? 'Connecting to YNAB…' : 'Connection unavailable'}</h2>
+                  <p>Server-managed credentials</p>
+                </div>
+              </div>
+              <p className="connect-copy">
+                The server reads the YNAB access token from its environment. It is never sent to this browser.
+              </p>
+              {loadingStep !== 'plans' ? (
+                <button type="button" className="button button-primary button-wide" onClick={handleConnect}>
+                  Retry connection
+                </button>
+              ) : null}
+            </section>
             <StatusMessage type={status?.type} onRetry={retryStep ? handleRetry : null}>
               {status?.message}
             </StatusMessage>
           </div>
           <ol className="workflow-list" aria-label="How Together works">
-            <li><div><strong>Connect securely</strong><p>Your token stays in this tab.</p></div></li>
+            <li><div><strong>Connect securely</strong><p>Your token stays on the server.</p></div></li>
             <li><div><strong>Choose two plans</strong><p>Pick any month they share.</p></div></li>
             <li><div><strong>Match categories</strong><p>Save a shared structure for next time.</p></div></li>
           </ol>
@@ -328,8 +500,8 @@ export default function App() {
               />
 
               <div className="connection-actions">
-                <span className="connection-state">Connected for this tab</span>
-                <button type="button" className="change-connection-button" onClick={handleDisconnect}>Change connection</button>
+                <span className="connection-state">Connected through the server</span>
+                <button type="button" className="change-connection-button" onClick={handleConnect}>Refresh connection</button>
               </div>
 
               <StatusMessage type={status?.type} onRetry={retryStep ? handleRetry : null}>
@@ -371,8 +543,8 @@ export default function App() {
       )}
 
       <footer className="app-footer">
-        <span>Local and read only</span>
-        <span>YNAB data is not stored by this app.</span>
+        <span>Read only</span>
+        <span>Mappings and the selected budgets are shared through the server data file.</span>
       </footer>
     </main>
   );

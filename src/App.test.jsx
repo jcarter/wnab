@@ -12,9 +12,7 @@ import {
   PLAN_B_MONTHS_RESPONSE,
   PLANS_RESPONSE,
 } from './test/fixtures/ynabResponses.js';
-import { serializeMapping } from './domain/mappingStorage.js';
-
-const API_BASE = 'https://api.ynab.com/v1';
+const API_BASE = '/api/ynab';
 
 function jsonResponse(body, { ok = true, status = 200 } = {}) {
   return {
@@ -24,25 +22,48 @@ function jsonResponse(body, { ok = true, status = 200 } = {}) {
   };
 }
 
-function installFetch(routes) {
-  globalThis.fetch = vi.fn(async (url) => {
+function installFetch(routes, {
+  mapping = null,
+  selectedBudgets = null,
+  authenticated = true,
+  password = 'shared-password',
+} = {}) {
+  let storedMapping = mapping;
+  let storedSelectedBudgets = selectedBudgets;
+  let signedIn = authenticated;
+  globalThis.fetch = vi.fn(async (url, options = {}) => {
+    if (url === '/api/auth/status') {
+      return jsonResponse({ authenticated: signedIn, passwordConfigured: true });
+    }
+    if (url === '/api/auth/login') {
+      if (JSON.parse(options.body).password !== password) {
+        return jsonResponse({ error: { detail: 'Incorrect password.' } }, { ok: false, status: 401 });
+      }
+      signedIn = true;
+      return jsonResponse({ authenticated: true });
+    }
+    if (url === '/api/auth/logout') {
+      signedIn = false;
+      return jsonResponse({ authenticated: false });
+    }
+    if (url.startsWith('/api/mappings?')) {
+      return jsonResponse({ mapping: storedMapping });
+    }
+    if (url === '/api/mappings' && options.method === 'PUT') {
+      storedMapping = JSON.parse(options.body).mapping;
+      return jsonResponse({ mapping: storedMapping });
+    }
+    if (url === '/api/selected-budgets') {
+      if (options.method === 'PUT') {
+        storedSelectedBudgets = JSON.parse(options.body).selectedBudgets;
+      }
+      return jsonResponse({ selectedBudgets: storedSelectedBudgets });
+    }
     if (!routes[url]) {
       throw new Error(`Unexpected URL: ${url}`);
     }
 
-    return jsonResponse(routes[url]);
-  });
-}
-
-function installHappyPathFetch() {
-  installFetch({
-    [`${API_BASE}/plans`]: PLANS_RESPONSE,
-    [`${API_BASE}/plans/plan-a/months`]: PLAN_A_MONTHS_RESPONSE,
-    [`${API_BASE}/plans/plan-b/months`]: PLAN_B_MONTHS_RESPONSE,
-    [`${API_BASE}/plans/plan-a/months/2026-06-01`]: PLAN_A_JUNE_MONTH_RESPONSE,
-    [`${API_BASE}/plans/plan-b/months/2026-06-01`]: PLAN_B_JUNE_MONTH_RESPONSE,
-    [`${API_BASE}/plans/plan-a/months/2026-05-01`]: PLAN_A_MAY_MONTH_RESPONSE,
-    [`${API_BASE}/plans/plan-b/months/2026-05-01`]: PLAN_B_MAY_MONTH_RESPONSE,
+    return typeof routes[url]?.json === 'function' ? routes[url] : jsonResponse(routes[url]);
   });
 }
 
@@ -55,9 +76,6 @@ function createStorageStub() {
     setItem(key, value) {
       values.set(key, String(value));
     },
-    removeItem(key) {
-      values.delete(key);
-    },
     clear() {
       values.clear();
     },
@@ -66,22 +84,25 @@ function createStorageStub() {
 
 function installStorage() {
   const storage = createStorageStub();
-  Object.defineProperty(globalThis, 'localStorage', {
-    configurable: true,
-    value: storage,
-  });
-  Object.defineProperty(window, 'localStorage', {
-    configurable: true,
-    value: storage,
-  });
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
+  Object.defineProperty(window, 'localStorage', { configurable: true, value: storage });
+}
+
+function installHappyPathFetch(options) {
+  installFetch({
+    [`${API_BASE}/plans`]: PLANS_RESPONSE,
+    [`${API_BASE}/plans/plan-a/months`]: PLAN_A_MONTHS_RESPONSE,
+    [`${API_BASE}/plans/plan-b/months`]: PLAN_B_MONTHS_RESPONSE,
+    [`${API_BASE}/plans/plan-a/months/2026-06-01`]: PLAN_A_JUNE_MONTH_RESPONSE,
+    [`${API_BASE}/plans/plan-b/months/2026-06-01`]: PLAN_B_JUNE_MONTH_RESPONSE,
+    [`${API_BASE}/plans/plan-a/months/2026-05-01`]: PLAN_A_MAY_MONTH_RESPONSE,
+    [`${API_BASE}/plans/plan-b/months/2026-05-01`]: PLAN_B_MAY_MONTH_RESPONSE,
+  }, options);
 }
 
 
-async function connectAndLoadMonth(user) {
+async function connectAndLoadMonth() {
   render(<App />);
-
-  await user.type(screen.getByLabelText('YNAB Personal Access Token'), 'fake-token');
-  await user.click(screen.getByRole('button', { name: 'Connect read-only' }));
 
   expect(await screen.findByLabelText('Your plan')).toHaveValue('plan-a');
   expect(screen.getByLabelText('Partner plan')).toHaveValue('plan-b');
@@ -96,7 +117,8 @@ beforeEach(() => {
 });
 
 describe('Together Budget app', () => {
-  test('switches between system, light, and dark themes and saves the choice', async () => {
+  test('switches between system, light, and dark themes and saves the choice in this browser', async () => {
+    installHappyPathFetch();
     const user = userEvent.setup();
     render(<App />);
 
@@ -115,11 +137,62 @@ describe('Together Budget app', () => {
     expect(document.documentElement).not.toHaveAttribute('data-theme');
   });
 
+  test('requires the shared password before loading budget data', async () => {
+    installHappyPathFetch({ authenticated: false });
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Enter shared password' })).toBeInTheDocument();
+    expect(globalThis.fetch).not.toHaveBeenCalledWith(`${API_BASE}/plans`, expect.anything());
+
+    await user.type(screen.getByLabelText('Application password'), 'wrong');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByText('Incorrect password.')).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText('Application password'), 'shared-password');
+    await user.click(screen.getByRole('button', { name: 'Sign in' }));
+    expect(await screen.findByLabelText('Your plan')).toHaveValue('plan-a');
+  });
+
+  test('restores the chosen month from localStorage for the shared selected budgets', async () => {
+    localStorage.setItem('ynabTogether.selectedMonth.v1.plan-a__plan-b', '2026-05-01');
+    installHappyPathFetch({
+      selectedBudgets: {
+        leftPlanId: 'plan-a',
+        rightPlanId: 'plan-b',
+      },
+    });
+
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: 'Choose month, May 2026' })).toBeInTheDocument();
+    expect(await screen.findByText('Unmapped source categories')).toBeInTheDocument();
+  });
+
+  test('shares the selected budgets but keeps their chosen month local', async () => {
+    installHappyPathFetch();
+
+    await connectAndLoadMonth();
+
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/selected-budgets', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        selectedBudgets: {
+          leftPlanId: 'plan-a',
+          rightPlanId: 'plan-b',
+        },
+      }),
+    });
+    expect(localStorage.getItem('ynabTogether.selectedMonth.v1.plan-a__plan-b'))
+      .toBe('2026-06-01');
+  });
+
   test('creates a Groceries mapping and renders combined budget totals from mocked endpoints', async () => {
     installHappyPathFetch();
     const user = userEvent.setup();
 
-    await connectAndLoadMonth(user);
+    await connectAndLoadMonth();
     await user.click(screen.getByRole('button', { name: 'Map categories' }));
 
     await user.type(screen.getByLabelText('Group name'), 'Living Expenses');
@@ -136,11 +209,9 @@ describe('Together Budget app', () => {
   });
 
   test('lists unmapped Dining Out separately and excludes it from mapped totals', async () => {
-    localStorage.setItem('ynabTogether.categoryMapping.v1.plan-a__plan-b', serializeMapping(GROCERIES_MAPPING));
-    installHappyPathFetch();
-    const user = userEvent.setup();
+    installHappyPathFetch({ mapping: GROCERIES_MAPPING });
 
-    await connectAndLoadMonth(user);
+    await connectAndLoadMonth();
 
     const totalsRow = screen.getByRole('row', { name: /Totals/ });
     expect(within(totalsRow).getByText('$950.00')).toBeInTheDocument();
@@ -149,28 +220,26 @@ describe('Together Budget app', () => {
   });
 
   test('renders a friendly access-token error for 401 YNAB envelopes', async () => {
-    globalThis.fetch = vi.fn(async () => jsonResponse({
+    installFetch({
+      [`${API_BASE}/plans`]: jsonResponse({
       error: {
         id: '401',
         name: 'unauthorized',
         detail: 'No access.',
       },
-    }, { ok: false, status: 401 }));
-    const user = userEvent.setup();
+      }, { ok: false, status: 401 }),
+    });
     render(<App />);
 
-    await user.type(screen.getByLabelText('YNAB Personal Access Token'), 'fake-token');
-    await user.click(screen.getByRole('button', { name: 'Connect read-only' }));
-
-    expect(await screen.findByText('YNAB rejected the access token. Check the token and try again.')).toBeInTheDocument();
+    expect(await screen.findByText(
+      'YNAB rejected the server access token. Check YNAB_ACCESS_TOKEN and try again.',
+    )).toBeInTheDocument();
   });
 
   test('reloads a saved mapping for the same selected plan pair', async () => {
-    localStorage.setItem('ynabTogether.categoryMapping.v1.plan-a__plan-b', serializeMapping(GROCERIES_MAPPING));
-    installHappyPathFetch();
-    const user = userEvent.setup();
+    installHappyPathFetch({ mapping: GROCERIES_MAPPING });
 
-    await connectAndLoadMonth(user);
+    await connectAndLoadMonth();
 
     const row = screen.getByRole('row', { name: /Groceries/ });
     expect(within(row).getByText('$950.00')).toBeInTheDocument();
@@ -179,11 +248,10 @@ describe('Together Budget app', () => {
   });
 
   test('expands a shared category into per-plan assigned, activity, and available amounts', async () => {
-    localStorage.setItem('ynabTogether.categoryMapping.v1.plan-a__plan-b', serializeMapping(GROCERIES_MAPPING));
-    installHappyPathFetch();
+    installHappyPathFetch({ mapping: GROCERIES_MAPPING });
     const user = userEvent.setup();
 
-    await connectAndLoadMonth(user);
+    await connectAndLoadMonth();
 
     await user.click(screen.getByRole('button', { name: 'Show plan breakdown for Groceries' }));
 
@@ -200,11 +268,10 @@ describe('Together Budget app', () => {
   });
 
   test('filters shared categories without changing the combined summary', async () => {
-    localStorage.setItem('ynabTogether.categoryMapping.v1.plan-a__plan-b', serializeMapping(GROCERIES_MAPPING));
-    installHappyPathFetch();
+    installHappyPathFetch({ mapping: GROCERIES_MAPPING });
     const user = userEvent.setup();
 
-    await connectAndLoadMonth(user);
+    await connectAndLoadMonth();
 
     await user.click(screen.getByRole('button', { name: 'Underfunded' }));
     expect(screen.getByText('No categories match this filter')).toBeInTheDocument();
@@ -218,7 +285,7 @@ describe('Together Budget app', () => {
     installHappyPathFetch();
     const user = userEvent.setup();
 
-    await connectAndLoadMonth(user);
+    await connectAndLoadMonth();
 
     expect(screen.queryByLabelText('Month')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Load month' })).not.toBeInTheDocument();
@@ -238,14 +305,26 @@ describe('Together Budget app', () => {
         expect.objectContaining({ method: 'GET' }),
       );
     });
+    expect(localStorage.getItem('ynabTogether.selectedMonth.v1.plan-a__plan-b'))
+      .toBe('2026-05-01');
   });
 
-  test('opens category mapping as a separate view and returns to the budget', async () => {
-    localStorage.setItem('ynabTogether.categoryMapping.v1.plan-a__plan-b', serializeMapping(GROCERIES_MAPPING));
+  test('signs out and returns to the password gate', async () => {
     installHappyPathFetch();
     const user = userEvent.setup();
 
-    await connectAndLoadMonth(user);
+    await connectAndLoadMonth();
+    await user.click(screen.getByRole('button', { name: 'Sign out' }));
+
+    expect(await screen.findByRole('heading', { name: 'Enter shared password' })).toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledWith('/api/auth/logout', { method: 'POST' });
+  });
+
+  test('opens category mapping as a separate view and returns to the budget', async () => {
+    installHappyPathFetch({ mapping: GROCERIES_MAPPING });
+    const user = userEvent.setup();
+
+    await connectAndLoadMonth();
     await user.click(screen.getByRole('button', { name: 'Map categories' }));
 
     expect(screen.getByRole('heading', { name: 'Map categories' })).toBeInTheDocument();

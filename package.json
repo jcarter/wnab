@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "NODE_ENV=development node server/server.mjs",
+    "start": "node server/server.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest --environment jsdom",

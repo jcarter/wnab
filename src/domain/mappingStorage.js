@@ -32,7 +32,7 @@ function isValidCategory(category) {
   );
 }
 
-function validateMappingShape(mapping, expectedPlanIds) {
+export function validateMappingShape(mapping, expectedPlanIds) {
   const expected = sortedPlanIds(expectedPlanIds);
   const actualPlanIds = Array.isArray(mapping?.planIds) ? sortedPlanIds(mapping.planIds) : [];
 
@@ -46,7 +46,7 @@ function validateMappingShape(mapping, expectedPlanIds) {
   );
 }
 
-function normalizeMapping(mapping) {
+export function normalizeMapping(mapping) {
   return {
     version: MAPPING_STORAGE_VERSION,
     planIds: sortedPlanIds(mapping.planIds),
@@ -59,15 +59,9 @@ function normalizeMapping(mapping) {
   };
 }
 
-export function loadMapping(planIds, storage = window.localStorage) {
-  const stored = storage.getItem(getMappingStorageKey(planIds));
-
-  if (stored === null) {
-    return { mapping: createEmptyMapping(planIds), error: null };
-  }
-
+export function parseStoredMapping(stored, planIds) {
   try {
-    const parsed = JSON.parse(stored);
+    const parsed = typeof stored === 'string' ? JSON.parse(stored) : stored;
     if (!validateMappingShape(parsed, planIds)) {
       throw new Error('invalid shape');
     }
@@ -79,11 +73,6 @@ export function loadMapping(planIds, storage = window.localStorage) {
       error: 'Saved mapping is invalid and was ignored.',
     };
   }
-}
-
-export function saveMapping(mapping, storage = window.localStorage) {
-  const normalized = normalizeMapping(mapping);
-  storage.setItem(getMappingStorageKey(normalized.planIds), serializeMapping(normalized));
 }
 
 export function parseImportedMapping(jsonText, expectedPlanIds) {

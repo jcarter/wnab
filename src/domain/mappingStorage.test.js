@@ -3,28 +3,12 @@ import { GROCERIES_MAPPING } from '../test/fixtures/ynabResponses.js';
 import {
   createEmptyMapping,
   getMappingStorageKey,
-  loadMapping,
   MAPPING_STORAGE_PREFIX,
   MAPPING_STORAGE_VERSION,
   parseImportedMapping,
-  saveMapping,
+  parseStoredMapping,
   serializeMapping,
 } from './mappingStorage.js';
-
-function createFakeStorage(initial = {}) {
-  const values = new Map(Object.entries(initial));
-  return {
-    getItem(key) {
-      return values.has(key) ? values.get(key) : null;
-    },
-    setItem(key, value) {
-      values.set(key, String(value));
-    },
-    dump() {
-      return Object.fromEntries(values);
-    },
-  };
-}
 
 describe('mapping storage', () => {
   test('builds stable sorted storage keys and empty mappings', () => {
@@ -38,28 +22,18 @@ describe('mapping storage', () => {
     });
   });
 
-  test('saves and loads valid mappings using fake storage only', () => {
-    const storage = createFakeStorage();
-
-    saveMapping(GROCERIES_MAPPING, storage);
-
-    expect(Object.keys(storage.dump())).toEqual(['ynabTogether.categoryMapping.v1.plan-a__plan-b']);
-    expect(storage.dump()['ynabTogether.categoryMapping.v1.plan-a__plan-b']).not.toContain('fake-token');
-    expect(loadMapping(['plan-b', 'plan-a'], storage)).toEqual({
+  test('parses a valid mapping loaded from the server data file', () => {
+    expect(parseStoredMapping(GROCERIES_MAPPING, ['plan-b', 'plan-a'])).toEqual({
       mapping: GROCERIES_MAPPING,
       error: null,
     });
   });
 
-  test('returns an empty mapping and error for invalid stored data without deleting it', () => {
-    const key = getMappingStorageKey(['plan-a', 'plan-b']);
-    const storage = createFakeStorage({ [key]: '{bad json' });
-
-    expect(loadMapping(['plan-a', 'plan-b'], storage)).toEqual({
+  test('returns an empty mapping and error for invalid stored data', () => {
+    expect(parseStoredMapping('{bad json', ['plan-a', 'plan-b'])).toEqual({
       mapping: createEmptyMapping(['plan-a', 'plan-b']),
       error: 'Saved mapping is invalid and was ignored.',
     });
-    expect(storage.dump()[key]).toBe('{bad json');
   });
 
   test('rejects imported mappings for different plan pairs', () => {

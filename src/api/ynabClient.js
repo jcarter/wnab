@@ -1,5 +1,4 @@
-export const YNAB_API_BASE_URL = 'https://api.ynab.com/v1';
-const AUTH_SCHEME = 'Bearer';
+export const YNAB_API_BASE_URL = '/api/ynab';
 
 
 export class YnabApiError extends Error {
@@ -10,10 +9,6 @@ export class YnabApiError extends Error {
     this.id = id;
     this.detail = detail;
   }
-}
-
-function normalizeToken(token) {
-  return String(token ?? '').trim();
 }
 
 function toYnabApiError(status, body) {
@@ -41,19 +36,10 @@ function toYnabApiError(status, body) {
   });
 }
 
-export function createYnabClient({ token, fetcher = globalThis.fetch, baseUrl = YNAB_API_BASE_URL }) {
-  const trimmedToken = normalizeToken(token);
-
+export function createYnabClient({ fetcher = globalThis.fetch, baseUrl = YNAB_API_BASE_URL } = {}) {
   async function getJson(path) {
-    if (!trimmedToken) {
-      throw new Error('Missing YNAB access token');
-    }
-
     const response = await fetcher(`${baseUrl}${path}`, {
       method: 'GET',
-      headers: {
-        Authorization: `${AUTH_SCHEME} ${trimmedToken}`,
-      },
     });
 
     const body = await response.json().catch(() => null);

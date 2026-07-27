@@ -11,6 +11,8 @@ node_modules
 dist
 .env
 .env.*
+data/together-budget.json
+data/together-budget.json.tmp
 
 # Build variants
 dist-ssr
