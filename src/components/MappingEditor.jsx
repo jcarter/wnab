@@ -8,12 +8,11 @@ function sourceLabel(source) {
 function groupSources(sourceCategories) {
   const groups = new Map();
   for (const source of sourceCategories) {
-    const planGroupKey = `${source.planName}||${source.categoryGroupName}`;
+    const planGroupKey = source.planName;
     if (!groups.has(planGroupKey)) {
       groups.set(planGroupKey, {
         key: planGroupKey,
         planName: source.planName,
-        categoryGroupName: source.categoryGroupName,
         sources: [],
       });
     }
@@ -30,7 +29,7 @@ function nextUnifiedId(mapping, groupName, name) {
   return `unified-${base}-${mapping.unifiedCategories.length + 1}`;
 }
 
-export function MappingEditor({ sourceCategories, mapping, planIds, onMappingChange, onMessage }) {
+export function MappingEditor({ sourceCategories, mapping, planIds, onMappingChange, onMessage, onBack }) {
   const [groupName, setGroupName] = useState('');
   const [name, setName] = useState('');
   const [query, setQuery] = useState('');
@@ -118,9 +117,10 @@ export function MappingEditor({ sourceCategories, mapping, planIds, onMappingCha
   return (
     <section className="mapping-editor" aria-labelledby="mapping-heading">
       <div className="section-heading-row">
+        <button type="button" className="back-to-budget" onClick={onBack}><span aria-hidden="true">‹</span> Budget</button>
         <div className="section-heading">
           <div>
-            <h2 id="mapping-heading">Match categories</h2>
+            <h2 id="mapping-heading">Map categories</h2>
             <p>Connect categories that mean the same thing across both plans.</p>
           </div>
         </div>
@@ -172,7 +172,7 @@ export function MappingEditor({ sourceCategories, mapping, planIds, onMappingCha
           <div className="source-list" aria-label="Source categories">
             {filteredSourceGroups.map((group) => (
               <fieldset key={group.key}>
-                <legend><strong>{group.planName}</strong><span>{group.categoryGroupName}</span></legend>
+                <legend><strong>{group.planName}</strong></legend>
                 {group.sources.map((source) => {
                   const isAssigned = assignedSourceIds.has(source.sourceId);
                   return (
@@ -185,7 +185,7 @@ export function MappingEditor({ sourceCategories, mapping, planIds, onMappingCha
                         onChange={() => toggleSource(source.sourceId)}
                       />
                       <span className="source-check" aria-hidden="true">✓</span>
-                      <span className="source-name">{source.categoryName}</span>
+                      <span className="source-name"><strong>{source.categoryName}</strong><small>{source.categoryGroupName}</small></span>
                       {source.hidden ? <span className="badge badge-hidden">Hidden</span> : null}
                       {isAssigned ? <span className="badge badge-mapped">Mapped</span> : null}
                     </label>

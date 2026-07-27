@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { TokenGate } from './components/TokenGate.jsx';
+import { HeaderMonthPicker } from './components/HeaderMonthPicker.jsx';
 import { PlanMonthSelector } from './components/PlanMonthSelector.jsx';
 import { MappingEditor } from './components/MappingEditor.jsx';
 import { UnifiedBudgetTable } from './components/UnifiedBudgetTable.jsx';
 import { StatusMessage } from './components/StatusMessage.jsx';
 import { createYnabClient, YnabApiError } from './api/ynabClient.js';
+import { formatMilliunits } from './domain/formatMoney.js';
 import {
   aggregateMappedCategories,
   getSelectableMonths,
@@ -46,13 +48,8 @@ function findPlan(plans, planId) {
   return plans.find((plan) => plan.id === planId) ?? null;
 }
 
-function formatMonth(month) {
-  if (!month) return '';
-  return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(month));
-}
-
 function BrandMark() {
-  return <span className="brand-mark" aria-hidden="true">T</span>;
+  return <span className="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>;
 }
 
 export default function App() {
@@ -71,16 +68,24 @@ export default function App() {
   const [status, setStatus] = useState(null);
   const [loadingStep, setLoadingStep] = useState(null);
   const [retryStep, setRetryStep] = useState(null);
+  const [activeView, setActiveView] = useState('budget');
 
   const leftPlan = findPlan(plans, leftPlanId);
   const rightPlan = findPlan(plans, rightPlanId);
   const selectedPlanIds = useMemo(() => [leftPlanId, rightPlanId].filter(Boolean), [leftPlanId, rightPlanId]);
+  const selectableMonths = useMemo(
+    () => getSelectableMonths(leftMonths, rightMonths),
+    [leftMonths, rightMonths],
+  );
   const aggregate = useMemo(
     () => (mapping ? aggregateMappedCategories(sourceCategories, mapping) : null),
     [mapping, sourceCategories],
   );
   const isConnected = plans.length >= 2;
   const hasBudgetData = Boolean(mapping && aggregate);
+  const combinedAvailable = hasBudgetData
+    ? formatMilliunits(aggregate.totals.available, currencyFormat)
+    : '—';
 
   useEffect(() => {
     if (theme === 'system') {
@@ -101,7 +106,43 @@ export default function App() {
     setRetryStep(step);
   }
 
-  async function loadMonthsForPair(apiClient, nextLeftPlanId, nextRightPlanId) {
+  async function loadMonthData(apiClient, nextLeftPlan, nextRightPlan, month) {
+    if (!apiClient || !nextLeftPlan || !nextRightPlan || !month) return;
+
+    setLoadingStep('month');
+    setRetryStep(null);
+    setStatus(null);
+
+    try {
+      const [leftMonthDetail, rightMonthDetail] = await Promise.all([
+        apiClient.getMonthDetail(nextLeftPlan.id, month),
+        apiClient.getMonthDetail(nextRightPlan.id, month),
+      ]);
+      const currency = validateCompatibleCurrencies(nextLeftPlan, nextRightPlan);
+      if (!currency.ok) {
+        setMapping(null);
+        setSourceCategories([]);
+        setStatus({ type: 'error', message: currency.message });
+        return;
+      }
+
+      const nextSourceCategories = [
+        ...getSourceCategories(nextLeftPlan, leftMonthDetail),
+        ...getSourceCategories(nextRightPlan, rightMonthDetail),
+      ];
+      const { mapping: loadedMapping, error } = loadMapping([nextLeftPlan.id, nextRightPlan.id]);
+      setSourceCategories(nextSourceCategories);
+      setCurrencyFormat(currency.currencyFormat);
+      setMapping(loadedMapping);
+      if (error) setStatus({ type: 'error', message: error });
+    } catch (error) {
+      setError(error, 'month');
+    } finally {
+      setLoadingStep(null);
+    }
+  }
+
+  async function loadMonthsForPair(apiClient, nextLeftPlanId, nextRightPlanId, availablePlans = plans) {
     if (!apiClient || !nextLeftPlanId || !nextRightPlanId || nextLeftPlanId === nextRightPlanId) return;
 
     setLoadingStep('months');
@@ -121,7 +162,12 @@ export default function App() {
       setSelectedMonth(sharedMonths[0] ?? '');
       if (sharedMonths.length === 0) {
         setStatus({ type: 'error', message: 'Selected plans have no shared months.' });
+        return;
       }
+
+      const nextLeftPlan = findPlan(availablePlans, nextLeftPlanId);
+      const nextRightPlan = findPlan(availablePlans, nextRightPlanId);
+      await loadMonthData(apiClient, nextLeftPlan, nextRightPlan, sharedMonths[0]);
     } catch (error) {
       setError(error, 'months');
     } finally {
@@ -150,7 +196,7 @@ export default function App() {
       setPlans(planData.plans);
       setLeftPlanId(nextLeftPlanId);
       setRightPlanId(nextRightPlanId);
-      await loadMonthsForPair(apiClient, nextLeftPlanId, nextRightPlanId);
+      await loadMonthsForPair(apiClient, nextLeftPlanId, nextRightPlanId, planData.plans);
     } catch (error) {
       setError(error, 'plans');
     } finally {
@@ -160,50 +206,20 @@ export default function App() {
 
   async function handleLeftPlanChange(planId) {
     setLeftPlanId(planId);
+    setActiveView('budget');
     await loadMonthsForPair(client, planId, rightPlanId);
   }
 
   async function handleRightPlanChange(planId) {
     setRightPlanId(planId);
+    setActiveView('budget');
     await loadMonthsForPair(client, leftPlanId, planId);
   }
 
-  async function handleLoadMonth() {
-    if (!client || !leftPlan || !rightPlan || !selectedMonth) return;
-
-    setLoadingStep('month');
-    setRetryStep(null);
-    setStatus(null);
-
-    try {
-      const [leftMonthDetail, rightMonthDetail] = await Promise.all([
-        client.getMonthDetail(leftPlan.id, selectedMonth),
-        client.getMonthDetail(rightPlan.id, selectedMonth),
-      ]);
-      const currency = validateCompatibleCurrencies(leftPlan, rightPlan);
-      if (!currency.ok) {
-        setMapping(null);
-        setSourceCategories([]);
-        setStatus({ type: 'error', message: currency.message });
-        return;
-      }
-
-      const nextSourceCategories = [
-        ...getSourceCategories(leftPlan, leftMonthDetail),
-        ...getSourceCategories(rightPlan, rightMonthDetail),
-      ];
-      const { mapping: loadedMapping, error } = loadMapping([leftPlan.id, rightPlan.id]);
-      setSourceCategories(nextSourceCategories);
-      setCurrencyFormat(currency.currencyFormat);
-      setMapping(loadedMapping);
-      if (error) {
-        setStatus({ type: 'error', message: error });
-      }
-    } catch (error) {
-      setError(error, 'month');
-    } finally {
-      setLoadingStep(null);
-    }
+  async function handleMonthSelect(month) {
+    setSelectedMonth(month);
+    setActiveView('budget');
+    await loadMonthData(client, leftPlan, rightPlan, month);
   }
 
   function handleMappingChange(nextMapping) {
@@ -222,7 +238,7 @@ export default function App() {
     } else if (retryStep === 'months') {
       loadMonthsForPair(client, leftPlanId, rightPlanId);
     } else if (retryStep === 'month') {
-      handleLoadMonth();
+      loadMonthData(client, leftPlan, rightPlan, selectedMonth);
     }
   }
 
@@ -241,6 +257,7 @@ export default function App() {
     setStatus(null);
     setLoadingStep(null);
     setRetryStep(null);
+    setActiveView('budget');
   }
 
   return (
@@ -248,11 +265,22 @@ export default function App() {
       <header className="app-header">
         <div className="brand-lockup">
           <BrandMark />
-          <div>
-            <h1>Together</h1>
-            <p className="brand-subtitle">Shared budget view</p>
-          </div>
+          <h1>Together</h1>
+          {isConnected ? (
+            <HeaderMonthPicker
+              availableMonths={selectableMonths}
+              selectedMonth={selectedMonth}
+              onSelect={handleMonthSelect}
+              loading={loadingStep === 'month' || loadingStep === 'months'}
+            />
+          ) : null}
         </div>
+        {isConnected ? (
+          <div className="ready-summary" aria-label={`Combined available ${combinedAvailable}`}>
+            <strong>{combinedAvailable}</strong>
+            <span>Combined available</span>
+          </div>
+        ) : null}
         <div className="header-meta">
           <label className="theme-picker">
             <span className="sr-only">Theme</span>
@@ -262,8 +290,7 @@ export default function App() {
               <option value="dark">Dark</option>
             </select>
           </label>
-          <span className="privacy-badge">Read only</span>
-          {selectedMonth ? <span className="month-badge">{formatMonth(selectedMonth)}</span> : null}
+          <span className="privacy-badge">{isConnected ? '2 plans connected' : 'Read only'}</span>
         </div>
       </header>
 
@@ -289,53 +316,56 @@ export default function App() {
         </section>
       ) : (
         <div className="workspace">
-          <section className="workspace-intro">
-            <div>
-              <h2>Shared budget</h2>
-              <p>Choose two plans and a month to review together.</p>
-            </div>
-            <div className="connection-actions">
-              <span className="connection-state">Connected for this tab</span>
-              <button type="button" className="change-connection-button" onClick={handleDisconnect}>Change connection</button>
-            </div>
-          </section>
+          {activeView === 'budget' ? (
+            <>
+              <PlanMonthSelector
+                plans={plans}
+                leftPlanId={leftPlanId}
+                rightPlanId={rightPlanId}
+                onLeftPlanChange={handleLeftPlanChange}
+                onRightPlanChange={handleRightPlanChange}
+                loading={loadingStep === 'month' || loadingStep === 'months'}
+              />
 
-          <PlanMonthSelector
-            plans={plans}
-            leftPlanId={leftPlanId}
-            rightPlanId={rightPlanId}
-            leftMonths={leftMonths}
-            rightMonths={rightMonths}
-            selectedMonth={selectedMonth}
-            onLeftPlanChange={handleLeftPlanChange}
-            onRightPlanChange={handleRightPlanChange}
-            onMonthChange={setSelectedMonth}
-            onLoadMonth={handleLoadMonth}
-            loading={loadingStep === 'month' || loadingStep === 'months'}
-          />
-
-          <StatusMessage type={status?.type} onRetry={retryStep ? handleRetry : null}>
-            {status?.message}
-          </StatusMessage>
-
-          {!hasBudgetData ? (
-            <section className="ready-card" aria-live="polite">
-              <div>
-                <h3>Choose a month to begin</h3>
-                <p>Load a shared month to review totals and match categories.</p>
+              <div className="connection-actions">
+                <span className="connection-state">Connected for this tab</span>
+                <button type="button" className="change-connection-button" onClick={handleDisconnect}>Change connection</button>
               </div>
-            </section>
+
+              <StatusMessage type={status?.type} onRetry={retryStep ? handleRetry : null}>
+                {status?.message}
+              </StatusMessage>
+
+              {!hasBudgetData ? (
+                <section className="ready-card" aria-live="polite">
+                  <div>
+                    <h3>{loadingStep ? 'Loading shared month…' : 'No shared month available'}</h3>
+                    <p>{loadingStep ? 'Fetching both plans for this month.' : 'Choose another pair of plans to continue.'}</p>
+                  </div>
+                </section>
+              ) : (
+                <UnifiedBudgetTable
+                  aggregate={aggregate}
+                  currencyFormat={currencyFormat}
+                  selectedMonth={selectedMonth}
+                  onOpenMapping={() => setActiveView('mapping')}
+                />
+              )}
+            </>
           ) : (
-            <div className="budget-workspace">
-              <UnifiedBudgetTable aggregate={aggregate} currencyFormat={currencyFormat} />
+            <>
+              <StatusMessage type={status?.type} onRetry={retryStep ? handleRetry : null}>
+                {status?.message}
+              </StatusMessage>
               <MappingEditor
                 sourceCategories={sourceCategories}
                 mapping={mapping}
                 planIds={selectedPlanIds}
                 onMappingChange={handleMappingChange}
                 onMessage={handleMappingMessage}
+                onBack={() => setActiveView('budget')}
               />
-            </div>
+            </>
           )}
         </div>
       )}

@@ -1,12 +1,20 @@
 # Project Progress
 
-Last updated: 2026-07-26 20:33 CDT
+Last updated: 2026-07-26 21:39 CDT
 
 ## Current state
 - Status: Complete
 - Next task: None
 
 ## Task checklist
+- [x] Show Assigned, Activity, and Available for every expanded plan on mobile
+- [x] Refine the mobile group headers, category rows, filters, and toolbar
+- [x] Make the header month picker interactive and auto-load selected months
+- [x] Remove the duplicate month selector and manual load action
+- [x] Render category mapping as a separate in-app view
+- [x] Rebuild the connected workspace around the YNAB-familiar table and summary rail
+- [x] Restyle category mapping as a flat two-column setup workspace
+- [x] Verify expandable category plan breakdowns on desktop and mobile
 - [x] Add a persistent System, Light, and Dark theme selector
 - [x] Redesign the UI for mobile-first financial clarity while preserving behavior
 - [x] Add expandable per-plan Budgeted and Spent breakdowns to shared categories
@@ -24,6 +32,16 @@ Last updated: 2026-07-26 20:33 CDT
 - [x] Run final verification
 
 ## Resume notes
+- Expanded plan rows on mobile now retain all three financial values: Available remains beside the plan identity while labeled Assigned and Activity figures appear on a second line.
+- Reworked the narrow budget breakpoint into compact mobile rows: group headers now render as continuous bands, Available stays prominent beside the category name, and Assigned/Activity align beneath it without desktop-column gaps.
+- Tightened the mobile filter and action bars, removed the non-functional view switch below 560px, and preserved the expandable plan breakdown as an inset full-width detail panel.
+- Replaced the decorative header month label with an accessible month picker, including year navigation, previous/next shared-month controls, unavailable-month states, and automatic transaction loading on selection.
+- Removed the duplicate budget-month selector and manual load button; changing either plan now refreshes the shared-month list and loads its newest available month automatically.
+- Moved category mapping into a dedicated in-app view with explicit Map categories and Budget navigation, so the mapping editor no longer renders below the budget workspace.
+- Rebuilt the connected workspace from two generated implementation references around YNAB-familiar chrome, dense ruled budget rows, signed Activity values, green Available capsules, and a 70/30 table-to-summary split.
+- Every mapped category now uses the same accessible inline disclosure; expanded rows show each contributing plan's category name, Assigned, Activity, and Available values in aligned columns.
+- Reworked category mapping into a flat two-column setup workspace grouped by plan, with source category groups visible beneath each category name and mapped relationships shown as compact removable rows.
+- Preserved the existing token flow, read-only API behavior, mapping persistence/import/export, theme selector, plan/month selection, and accessible test contracts.
 - Added a compact header theme selector with System, Light, and Dark options; the preference persists locally and applies before React loads to prevent a theme flash.
 - Rebuilt the visual system around calm neutral surfaces, one restrained green accent, system sans typography, tabular financial figures, and paired light/dark tokens.
 - Reworked mobile selection controls, budget metrics, labeled category rows, breakdowns, unmapped items, and mapping forms to avoid horizontal or nested scrolling.
@@ -43,6 +61,16 @@ Last updated: 2026-07-26 20:33 CDT
 - Final code review approved; addressed the non-blocking malformed-error-envelope robustness suggestion with a red/green API test.
 
 ## Verification log
+- Expanded plan-breakdown browser QA at 390x844 — PASS (Assigned, Activity, and Available visible for every plan; 390px document width with no overflow).
+- `npx oxlint src && npm run test:run && npm run build && git diff --check` — PASS (32 tests and production build after restoring mobile plan metrics).
+- Mobile budget browser QA at 390x844 and 320x700 — PASS (continuous group bands, compact rows, expanded plan breakdown, filters fitting at both widths, and no horizontal overflow).
+- `npx oxlint src && npm run test:run && npm run build && git diff --check` — PASS (32 tests and production build after the mobile budget refinement).
+- Header month and mapping navigation browser QA at 1440x900 and 390x844 — PASS (automatic month switching, no duplicate controls, separate mapping view, and no horizontal overflow).
+- `npx oxlint src && npm run test:run && npm run build && git diff --check` — PASS (32 tests and production build after month-navigation and mapping-view changes).
+- Image-first design QA — PASS (two generated 1440×900 references for the budget and mapping workspaces were analyzed before implementation).
+- Connected desktop browser QA at 1440×900 — PASS (70/30 table/summary layout, aligned expanded plan breakdown, flat mapping workspace, and no console warnings or errors).
+- Connected mobile browser QA at 390×844 — PASS (no horizontal overflow; category figures, expanded plan rows, source lists, and mapped relationships stack cleanly).
+- `npx oxlint src && npm run test:run && npm run build && git diff --check` — PASS (30 tests and production build after the YNAB-familiar redesign).
 - Theme selector browser QA - PASS at 320px and 390px (single-line 68px header, no horizontal overflow, all three choices apply immediately).
 - `npx oxlint src && npm run test:run && npm run build && git diff --check` - PASS (29 tests and production build after theme selector addition).
 - Mobile browser QA at 390x844 - PASS (no horizontal overflow; controls, totals, budget rows, and mapping forms stack cleanly).
