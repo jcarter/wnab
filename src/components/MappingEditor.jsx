@@ -187,7 +187,7 @@ export function MappingEditor({ sourceCategories, mapping, planIds, onMappingCha
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'together-budget-mapping.json';
+    link.download = 'wnab-mapping.json';
     link.click();
     URL.revokeObjectURL(url);
   }

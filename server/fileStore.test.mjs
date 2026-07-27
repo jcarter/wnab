@@ -10,12 +10,12 @@ import { FileStore } from './fileStore.mjs';
 const temporaryDirectories = [];
 
 async function createStore() {
-  const directory = await mkdtemp(join(tmpdir(), 'ynab-together-'));
+  const directory = await mkdtemp(join(tmpdir(), 'wnab-'));
   temporaryDirectories.push(directory);
   await mkdir(join(directory, 'nested'));
   return {
-    filePath: join(directory, 'nested', 'together-budget.json'),
-    store: new FileStore(join(directory, 'nested', 'together-budget.json')),
+    filePath: join(directory, 'nested', 'wnab.json'),
+    store: new FileStore(join(directory, 'nested', 'wnab.json')),
   };
 }
 
@@ -43,7 +43,7 @@ describe('FileStore', () => {
     const persisted = JSON.parse(await readFile(filePath, 'utf8'));
     expect(persisted.version).toBe(3);
     expect(persisted.selectedBudgets).toEqual(selectedBudgets);
-    expect(persisted.mappings['ynabTogether.categoryMapping.v1.plan-a__plan-b'])
+    expect(persisted.mappings['wnab.categoryMapping.v1.plan-a__plan-b'])
       .toEqual(GROCERIES_MAPPING);
     expect(JSON.stringify(persisted)).not.toContain('accessToken');
     expect(JSON.stringify(persisted)).not.toContain('theme');

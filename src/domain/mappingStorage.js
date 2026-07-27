@@ -1,5 +1,5 @@
 export const MAPPING_STORAGE_VERSION = 1;
-export const MAPPING_STORAGE_PREFIX = 'ynabTogether.categoryMapping.v1';
+export const MAPPING_STORAGE_PREFIX = 'wnab.categoryMapping.v1';
 
 function sortedPlanIds(planIds) {
   return [...planIds].sort();

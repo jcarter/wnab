@@ -10,7 +10,7 @@ const projectRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const distDirectory = resolve(projectRoot, 'dist');
 const port = Number.parseInt(process.env.PORT || '3000', 10);
 const host = process.env.HOST || '0.0.0.0';
-const dataFile = resolve(process.env.DATA_FILE || resolve(projectRoot, 'data/together-budget.json'));
+const dataFile = resolve(process.env.DATA_FILE || resolve(projectRoot, 'data/wnab.json'));
 const ynabApiBaseUrl = 'https://api.ynab.com/v1';
 const store = new FileStore(dataFile);
 const auth = createAuth();
@@ -264,6 +264,6 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Together Budget listening on http://${host}:${port}`);
+  console.log(`WNAB listening on http://${host}:${port}`);
   console.log(`Persisting app data to ${dataFile}`);
 });

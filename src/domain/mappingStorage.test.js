@@ -13,8 +13,8 @@ import {
 describe('mapping storage', () => {
   test('builds stable sorted storage keys and empty mappings', () => {
     expect(MAPPING_STORAGE_VERSION).toBe(1);
-    expect(MAPPING_STORAGE_PREFIX).toBe('ynabTogether.categoryMapping.v1');
-    expect(getMappingStorageKey(['plan-b', 'plan-a'])).toBe('ynabTogether.categoryMapping.v1.plan-a__plan-b');
+    expect(MAPPING_STORAGE_PREFIX).toBe('wnab.categoryMapping.v1');
+    expect(getMappingStorageKey(['plan-b', 'plan-a'])).toBe('wnab.categoryMapping.v1.plan-a__plan-b');
     expect(createEmptyMapping(['plan-b', 'plan-a'])).toEqual({
       version: 1,
       planIds: ['plan-a', 'plan-b'],

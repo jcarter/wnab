@@ -10,7 +10,7 @@ export function PlanMonthSelector({
     <section className="selection-card" aria-label="Plan selection">
       <div className="selection-heading">
         <span className="selection-icon" aria-hidden="true">⌁</span>
-        <div><h3>Shared plans</h3><p>Choose the two plans to review together.</p></div>
+        <div><h3>Shared plans</h3><p>Choose the two plans to review side by side.</p></div>
       </div>
       <div className="control-grid">
         <label>

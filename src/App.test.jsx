@@ -116,7 +116,14 @@ beforeEach(() => {
   document.documentElement.removeAttribute('data-theme');
 });
 
-describe('Together Budget app', () => {
+describe('WNAB app', () => {
+  test('renders the WNAB brand name', async () => {
+    installHappyPathFetch();
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'WNAB' })).toBeInTheDocument();
+  });
+
   test('switches between system, light, and dark themes and saves the choice in this browser', async () => {
     installHappyPathFetch();
     const user = userEvent.setup();
@@ -128,7 +135,7 @@ describe('Together Budget app', () => {
 
     await user.selectOptions(themePicker, 'dark');
     expect(document.documentElement).toHaveAttribute('data-theme', 'dark');
-    expect(localStorage.getItem('ynabTogether.theme.v1')).toBe('dark');
+    expect(localStorage.getItem('wnab.theme.v1')).toBe('dark');
 
     await user.selectOptions(themePicker, 'light');
     expect(document.documentElement).toHaveAttribute('data-theme', 'light');
@@ -155,7 +162,7 @@ describe('Together Budget app', () => {
   });
 
   test('restores the chosen month from localStorage for the shared selected budgets', async () => {
-    localStorage.setItem('ynabTogether.selectedMonth.v1.plan-a__plan-b', '2026-05-01');
+    localStorage.setItem('wnab.selectedMonth.v1.plan-a__plan-b', '2026-05-01');
     installHappyPathFetch({
       selectedBudgets: {
         leftPlanId: 'plan-a',
@@ -184,7 +191,7 @@ describe('Together Budget app', () => {
         },
       }),
     });
-    expect(localStorage.getItem('ynabTogether.selectedMonth.v1.plan-a__plan-b'))
+    expect(localStorage.getItem('wnab.selectedMonth.v1.plan-a__plan-b'))
       .toBe('2026-06-01');
   });
 
@@ -322,7 +329,7 @@ describe('Together Budget app', () => {
         expect.objectContaining({ method: 'GET' }),
       );
     });
-    expect(localStorage.getItem('ynabTogether.selectedMonth.v1.plan-a__plan-b'))
+    expect(localStorage.getItem('wnab.selectedMonth.v1.plan-a__plan-b'))
       .toBe('2026-05-01');
   });
 

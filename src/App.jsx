@@ -17,8 +17,8 @@ import {
 } from './domain/aggregation.js';
 const appStorage = createAppStorageClient();
 const authClient = createAuthClient();
-const THEME_STORAGE_KEY = 'ynabTogether.theme.v1';
-const MONTH_STORAGE_PREFIX = 'ynabTogether.selectedMonth.v1';
+const THEME_STORAGE_KEY = 'wnab.theme.v1';
+const MONTH_STORAGE_PREFIX = 'wnab.selectedMonth.v1';
 const VALID_THEMES = new Set(['system', 'light', 'dark']);
 
 function getStoredTheme() {
@@ -389,7 +389,7 @@ export default function App() {
     return (
       <main className="app-shell">
         <header className="app-header">
-          <div className="brand-lockup"><BrandMark /><h1>Together</h1></div>
+          <div className="brand-lockup"><BrandMark /><h1>WNAB</h1></div>
           <div />
           <div className="header-meta">
             <label className="theme-picker">
@@ -421,7 +421,7 @@ export default function App() {
       <header className="app-header">
         <div className="brand-lockup">
           <BrandMark />
-          <h1>Together</h1>
+          <h1>WNAB</h1>
           {isConnected ? (
             <HeaderMonthPicker
               availableMonths={selectableMonths}
@@ -480,7 +480,7 @@ export default function App() {
               {status?.message}
             </StatusMessage>
           </div>
-          <ol className="workflow-list" aria-label="How Together works">
+          <ol className="workflow-list" aria-label="How WNAB works">
             <li><div><strong>Connect securely</strong><p>Your token stays on the server.</p></div></li>
             <li><div><strong>Choose two plans</strong><p>Pick any month they share.</p></div></li>
             <li><div><strong>Match categories</strong><p>Save a shared structure for next time.</p></div></li>

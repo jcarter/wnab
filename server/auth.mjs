@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
-export const AUTH_COOKIE_NAME = 'ynab_together_session';
+export const AUTH_COOKIE_NAME = 'wnab_session';
 const DEFAULT_SESSION_HOURS = 24 * 7;
 
 export class AuthError extends Error {

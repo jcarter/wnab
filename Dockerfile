@@ -11,7 +11,7 @@ FROM node:22-alpine AS runtime
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000 \
-    DATA_FILE=/app/data/together-budget.json
+    DATA_FILE=/app/data/wnab.json
 
 WORKDIR /app
 COPY --from=build /app/package.json ./package.json
