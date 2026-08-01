@@ -1023,7 +1023,7 @@ summary:focus-visible {
 .budget-table thead th:last-child,
 .budget-table tbody td:last-child,
 .budget-table tfoot td:last-child {
-  padding-right: 1.5rem;
+  padding-right: 2rem;
 }
 
 .budget-table .money {
@@ -1204,11 +1204,15 @@ summary:focus-visible {
   background: var(--surface-raised);
 }
 
+.category-progress-row + .breakdown-row > td {
+  padding-top: 0.75rem !important;
+}
+
 .plan-breakdown {
   overflow: hidden;
-  margin-right: -1.5rem;
+  margin-right: 0;
   border: 1px solid #cdd2ff;
-  border-radius: 8px 0 0 8px;
+  border-radius: 8px;
   background: var(--surface-accent);
 }
 
@@ -1218,6 +1222,7 @@ summary:focus-visible {
   gap: 0.5rem;
   align-items: center;
   min-height: 52px;
+  margin-right: -1.5rem;
   padding: 0.5rem 1.5rem 0.5rem 1rem;
 }
 
@@ -1227,6 +1232,14 @@ summary:focus-visible {
 
 .plan-breakdown-line .breakdown-available .available-amount {
   transform: translateX(1px);
+}
+
+.plan-breakdown-line .breakdown-available {
+  padding-right: 0.5rem;
+}
+
+.plan-breakdown-line .breakdown-assigned {
+  transform: translateX(1rem);
 }
 
 .plan-initial {
@@ -2073,13 +2086,13 @@ summary:focus-visible {
   .budget-table thead th:first-child,
   .budget-table tbody th:first-child,
   .budget-table tfoot th:first-child {
-    padding-left: 1rem;
+    padding-left: 0.5rem;
   }
 
   .budget-table thead th:last-child,
   .budget-table tbody td:last-child,
   .budget-table tfoot td:last-child {
-    padding-right: 1rem;
+    padding-right: 1.5rem;
   }
 
   .breakdown-row > td {
@@ -2088,6 +2101,7 @@ summary:focus-visible {
 
   .plan-breakdown-line {
     grid-template-columns: 24px minmax(0, 1fr) minmax(70px, 25%) minmax(70px, calc(25% - 0.13rem));
+    margin-right: -1rem;
     padding-right: 1rem;
   }
 
@@ -2198,7 +2212,7 @@ summary:focus-visible {
     border-bottom: 1px solid var(--border);
     background: var(--surface-muted);
     box-shadow: 0 1px 0 var(--border);
-    padding: 0 var(--budget-inline-padding);
+    padding: 0 var(--budget-inline-padding) 0 0.5rem;
   }
 
   .budget-table .group-row > * {
@@ -2225,6 +2239,10 @@ summary:focus-visible {
     font-size: 0.52rem;
     font-weight: 650;
     text-transform: uppercase;
+  }
+
+  .budget-table .group-row > td:last-of-type::before {
+    margin-right: 0.5rem;
   }
 
   .budget-table-with-progress .group-row {
@@ -2281,6 +2299,12 @@ summary:focus-visible {
     text-align: left;
   }
 
+  .budget-table .group-row > td:last-child,
+  .budget-table .category-row > td:last-child,
+  .budget-table tfoot tr > td:last-child {
+    padding-right: 0.5rem;
+  }
+
   .budget-table .category-row > th,
   .budget-table tfoot tr > th {
     grid-area: category;
@@ -2314,6 +2338,15 @@ summary:focus-visible {
   .budget-table-with-progress tfoot tr {
     grid-template-areas: "category available";
     grid-template-columns: minmax(0, 1fr) minmax(6rem, 0.38fr);
+  }
+
+  .budget-table-with-progress .category-row {
+    padding-top: 0.6rem;
+    padding-bottom: 0.15rem;
+  }
+
+  .budget-table-with-progress .category-row .category-toggle {
+    min-height: 32px;
   }
 
   .budget-table-with-progress .category-row > td:first-of-type,
@@ -2388,6 +2421,10 @@ summary:focus-visible {
     padding: 0 var(--budget-inline-padding) 0.65rem !important;
   }
 
+  .category-progress-row + .breakdown-row > td {
+    padding-top: 0.65rem !important;
+  }
+
   .plan-breakdown {
     margin-right: 0;
     border-radius: 8px;
@@ -2397,7 +2434,7 @@ summary:focus-visible {
     grid-template-areas: "initial source assigned available";
     grid-template-columns: 2.25rem minmax(0, 1fr) var(--budget-assigned-column) var(--budget-available-column);
     column-gap: var(--budget-column-gap);
-    padding: 0.7rem 0;
+    padding: 0.7rem var(--budget-inline-padding) 0.7rem 0;
   }
 
   .plan-breakdown-line .plan-initial {
@@ -2412,6 +2449,7 @@ summary:focus-visible {
   .plan-breakdown-line .breakdown-assigned {
     grid-area: assigned;
     justify-self: stretch;
+    transform: translateX(1px);
   }
 
   .plan-breakdown-line .breakdown-available {
@@ -2419,7 +2457,7 @@ summary:focus-visible {
     align-self: center;
     justify-self: stretch;
     justify-items: end;
-    padding-right: 0;
+    padding-right: 0.5rem;
   }
 
   .plan-breakdown-line > .money {
