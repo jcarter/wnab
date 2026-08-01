@@ -23,6 +23,8 @@
   --success-soft: #dff7be;
   --ready: #b8f276;
   --ready-strong: #4f7c12;
+  --progress-spent: #c8f59d;
+  --progress-available: #6fbe22;
   --shadow: 0 10px 30px rgba(50, 43, 31, 0.06);
   font-family: "Avenir Next", Avenir, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   color: var(--text);
@@ -58,6 +60,8 @@
   --success-soft: #304322;
   --ready: #8fce49;
   --ready-strong: #2f5510;
+  --progress-spent: #b6e889;
+  --progress-available: #6fbe22;
   --shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
 }
 
@@ -383,9 +387,93 @@ a {
 }
 
 .header-meta {
+  position: relative;
   min-width: 0;
   justify-content: flex-end;
   gap: 0.6rem;
+}
+
+.header-options-trigger {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--text);
+  background: var(--surface-raised);
+  font-size: 1rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1;
+  padding: 0 0 0 0.12em;
+}
+
+.header-options-trigger:hover,
+.header-options-trigger[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: var(--surface-accent);
+}
+
+.header-options-menu {
+  position: absolute;
+  top: calc(100% + 0.55rem);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  width: min(250px, calc(100vw - 2rem));
+  gap: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  background: var(--surface-raised);
+  box-shadow: 0 18px 44px rgba(46, 40, 31, 0.2);
+  padding: 0.8rem;
+}
+
+.options-field,
+.options-toggle {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+  font-weight: 650;
+}
+
+.options-field select {
+  min-height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  color: var(--text);
+  background: var(--surface-muted);
+  font: inherit;
+  padding: 0.3rem 1.5rem 0.3rem 0.5rem;
+}
+
+.options-toggle {
+  justify-content: flex-start;
+  color: var(--text);
+}
+
+.options-toggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--accent);
+}
+
+.options-signout {
+  min-height: 36px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  color: var(--danger);
+  background: transparent;
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-align: left;
+  padding: 0.8rem 0 0.05rem;
 }
 
 .theme-picker select {
@@ -910,7 +998,7 @@ summary:focus-visible {
 }
 
 .budget-table th:first-child {
-  width: 43%;
+  width: 56%;
 }
 
 .budget-table .money {
@@ -979,6 +1067,47 @@ summary:focus-visible {
   border-bottom-color: transparent;
 }
 
+.category-progress-row > td {
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-raised);
+  padding: 0 1.5rem 0.65rem calc(1.5rem + 1.85rem);
+}
+
+.category-progress {
+  width: 100%;
+}
+
+.category-progress-track {
+  display: flex;
+  width: 100%;
+  height: 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, var(--surface));
+  border-radius: 999px;
+  background: var(--surface-muted);
+}
+
+.category-progress-segment {
+  display: block;
+  height: 100%;
+  flex: 0 0 auto;
+}
+
+.category-progress-segment-spent {
+  background: var(--progress-spent);
+}
+
+.category-progress-segment-available {
+  background: var(--progress-available);
+}
+
+.category-progress-description {
+  margin-top: 0.38rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  font-weight: 520;
+}
+
 .available-amount {
   display: inline-flex;
   min-width: 62px;
@@ -1013,7 +1142,7 @@ summary:focus-visible {
 
 .plan-breakdown-line {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) repeat(3, minmax(85px, 0.48fr));
+  grid-template-columns: 26px minmax(0, 1fr) repeat(2, minmax(85px, 0.48fr));
   gap: 0.5rem;
   align-items: center;
   min-height: 52px;
@@ -1146,88 +1275,6 @@ summary:focus-visible {
 
 .summary-total dd {
   color: var(--success);
-}
-
-.summary-contributions {
-  border-top: 1px solid var(--border);
-  padding: 1rem 1.15rem 1.15rem;
-}
-
-.summary-contributions-heading,
-.plan-contribution-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-}
-
-.summary-contributions-heading h3 {
-  font-size: 0.78rem;
-}
-
-.summary-contributions-heading > span {
-  color: var(--text-subtle);
-  font-size: 0.61rem;
-  font-weight: 620;
-}
-
-.summary-contributions ul {
-  display: grid;
-  gap: 0.85rem;
-  margin: 0.9rem 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.plan-contribution-line {
-  font-size: 0.7rem;
-}
-
-.plan-contribution-line > span {
-  display: flex;
-  align-items: baseline;
-  gap: 0.45rem;
-}
-
-.plan-contribution-line .money {
-  font-variant-numeric: tabular-nums;
-  font-weight: 680;
-}
-
-.plan-contribution-line small {
-  min-width: 2.6rem;
-  color: var(--text-muted);
-  font-size: 0.62rem;
-  font-variant-numeric: tabular-nums;
-  font-weight: 650;
-  text-align: right;
-}
-
-.summary-contributions progress {
-  display: block;
-  width: 100%;
-  height: 5px;
-  overflow: hidden;
-  margin-top: 0.42rem;
-  border: 0;
-  border-radius: 999px;
-  appearance: none;
-  background: var(--surface-muted);
-}
-
-.summary-contributions progress::-webkit-progress-bar {
-  border-radius: 999px;
-  background: var(--surface-muted);
-}
-
-.summary-contributions progress::-webkit-progress-value {
-  border-radius: 999px;
-  background: var(--accent);
-}
-
-.summary-contributions progress::-moz-progress-bar {
-  border-radius: 999px;
-  background: var(--accent);
 }
 
 .coverage-panel {
@@ -1821,6 +1868,8 @@ summary:focus-visible {
     --success-soft: #304322;
     --ready: #8fce49;
     --ready-strong: #2f5510;
+    --progress-spent: #b6e889;
+    --progress-available: #6fbe22;
     --shadow: 0 12px 34px rgba(0, 0, 0, 0.24);
   }
 }
@@ -1943,7 +1992,7 @@ summary:focus-visible {
   }
 
   .budget-table th:first-child {
-    width: 38%;
+    width: 50%;
   }
 
   .budget-table th,
@@ -1964,7 +2013,7 @@ summary:focus-visible {
   }
 
   .plan-breakdown-line {
-    grid-template-columns: 24px minmax(0, 1fr) repeat(3, minmax(70px, 0.48fr));
+    grid-template-columns: 24px minmax(0, 1fr) repeat(2, minmax(70px, 0.48fr));
   }
 
   .mapping-builder,
@@ -2058,7 +2107,7 @@ summary:focus-visible {
 
   .budget-table .group-row {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(6rem, 0.38fr);
+    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(5.75rem, auto));
     min-height: 46px;
     align-items: center;
     border-bottom: 1px solid var(--border);
@@ -2067,12 +2116,7 @@ summary:focus-visible {
   }
 
   .budget-table .group-row > * {
-    display: none;
-  }
-
-  .budget-table .group-row > th,
-  .budget-table .group-row > td:last-child {
-    display: flex;
+    display: grid;
     height: auto;
     align-items: center;
     border: 0;
@@ -2080,8 +2124,29 @@ summary:focus-visible {
     padding: 0;
   }
 
-  .budget-table .group-row > td:last-child {
-    justify-content: flex-end;
+  .budget-table .group-row > td {
+    justify-items: end;
+    text-align: right;
+  }
+
+  .budget-table .group-row > td::before {
+    content: attr(data-label);
+    color: var(--text-subtle);
+    font-size: 0.52rem;
+    font-weight: 650;
+    text-transform: uppercase;
+  }
+
+  .budget-table-with-progress .group-row {
+    grid-template-columns: minmax(0, 1fr) minmax(6rem, 0.38fr);
+  }
+
+  .budget-table-with-progress .group-row > td:first-of-type {
+    display: none;
+  }
+
+  .budget-table-with-progress .group-row > td:last-of-type::before {
+    content: attr(data-progress-label);
   }
 
   .budget-table .group-row .row-chevron {
@@ -2092,14 +2157,17 @@ summary:focus-visible {
   .budget-table .category-row,
   .budget-table tfoot tr {
     display: grid;
-    grid-template-areas:
-      "category available"
-      "assigned activity";
-    grid-template-columns: minmax(0, 1fr) minmax(6rem, 0.38fr);
+    grid-template-areas: "category assigned available";
+    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(5.75rem, auto));
     column-gap: 1rem;
-    row-gap: 0.5rem;
+    row-gap: 0;
     border-bottom: 1px solid var(--border);
     padding: 0.75rem 1rem 0.8rem;
+  }
+
+  .budget-table .category-row-with-progress,
+  .budget-table .category-row-expanded {
+    border-bottom: 0;
   }
 
   .budget-table .category-row > *,
@@ -2128,27 +2196,9 @@ summary:focus-visible {
 
   .budget-table .category-row > td:nth-of-type(2),
   .budget-table tfoot tr > td:nth-of-type(2) {
-    grid-area: activity;
-    width: 100%;
-    justify-items: end;
-    justify-self: stretch;
-    text-align: right;
-  }
-
-  .budget-table .category-row > td:nth-of-type(3),
-  .budget-table tfoot tr > td:nth-of-type(3) {
     grid-area: available;
     align-self: center;
     justify-self: end;
-  }
-
-  .budget-table .category-row > td::before,
-  .budget-table tfoot tr > td::before {
-    content: attr(data-label);
-    color: var(--text-subtle);
-    font-size: 0.56rem;
-    font-weight: 650;
-    text-transform: uppercase;
   }
 
   .budget-table .category-row .money,
@@ -2156,13 +2206,19 @@ summary:focus-visible {
     text-align: left;
   }
 
-  .budget-table .category-row > td:last-child::before,
-  .budget-table tfoot tr > td:last-child::before {
-    content: none;
+  .budget-table-with-progress .category-row,
+  .budget-table-with-progress tfoot tr {
+    grid-template-areas: "category available";
+    grid-template-columns: minmax(0, 1fr) minmax(6rem, 0.38fr);
+  }
+
+  .budget-table-with-progress .category-row > td:first-of-type,
+  .budget-table-with-progress tfoot tr > td:first-of-type {
+    display: none;
   }
 
   .category-toggle {
-    min-height: 28px;
+    min-height: 44px;
     font-size: 0.8rem;
     font-weight: 620;
   }
@@ -2189,6 +2245,26 @@ summary:focus-visible {
     justify-content: flex-end;
   }
 
+  .category-progress-row {
+    display: block;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .category-progress-row > td {
+    display: block;
+    border: 0;
+    padding: 0 1rem 0.75rem;
+  }
+
+  .category-progress-track {
+    height: 7px;
+  }
+
+  .category-progress-description {
+    margin-top: 0.45rem;
+    font-size: 0.78rem;
+  }
+
   .budget-table tfoot tr {
     border-top: 2px solid var(--border-strong);
     background: var(--surface-muted);
@@ -2211,7 +2287,7 @@ summary:focus-visible {
   .plan-breakdown-line {
     grid-template-areas:
       "initial source available"
-      ". assigned activity";
+      ". assigned .";
     grid-template-columns: 24px minmax(0, 1fr) auto;
     gap: 0.55rem 0.45rem;
     padding: 0.7rem;
@@ -2228,11 +2304,6 @@ summary:focus-visible {
   .plan-breakdown-line .breakdown-assigned {
     grid-area: assigned;
     justify-self: start;
-  }
-
-  .plan-breakdown-line .breakdown-activity {
-    grid-area: activity;
-    justify-self: end;
   }
 
   .plan-breakdown-line .breakdown-available {
@@ -2315,6 +2386,23 @@ summary:focus-visible {
     width: 68px;
     min-width: 0;
     font-size: 0.66rem;
+  }
+}
+
+@media (max-width: 360px) {
+  .budget-table:not(.budget-table-with-progress) .group-row,
+  .budget-table:not(.budget-table-with-progress) .category-row,
+  .budget-table:not(.budget-table-with-progress) tfoot tr {
+    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(4.5rem, auto));
+    column-gap: 0.5rem;
+  }
+
+  .budget-table:not(.budget-table-with-progress) .category-toggle {
+    min-width: 0;
+  }
+
+  .budget-table:not(.budget-table-with-progress) .category-toggle > span:not(.row-chevron) {
+    flex: 1 1 auto;
   }
 }
 

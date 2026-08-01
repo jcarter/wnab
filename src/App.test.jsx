@@ -129,6 +129,8 @@ describe('WNAB app', () => {
     const user = userEvent.setup();
     render(<App />);
 
+    await screen.findByLabelText('Your plan');
+    await user.click(screen.getByRole('button', { name: 'More options' }));
     const themePicker = screen.getByLabelText('Theme');
     expect(themePicker).toHaveValue('system');
     expect(document.documentElement).not.toHaveAttribute('data-theme');
@@ -142,6 +144,72 @@ describe('WNAB app', () => {
 
     await user.selectOptions(themePicker, 'system');
     expect(document.documentElement).not.toHaveAttribute('data-theme');
+  });
+
+  test('keeps progress bars hidden by default and persists the local display preference', async () => {
+    installHappyPathFetch({ mapping: GROCERIES_MAPPING });
+    const user = userEvent.setup();
+
+    await connectAndLoadMonth();
+    expect(screen.queryByRole('progressbar', { name: /^Groceries:/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'More options' }));
+    const toggle = screen.getByRole('checkbox', { name: 'Show progress bars' });
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+
+    expect(localStorage.getItem('wnab.showProgressBars.v1')).toBe('true');
+    expect(screen.getByRole('progressbar', { name: /^Groceries:/ })).toBeInTheDocument();
+  });
+
+  test('restores saved progress-bar visibility from this browser only', async () => {
+    localStorage.setItem('wnab.showProgressBars.v1', 'true');
+    installHappyPathFetch({ mapping: GROCERIES_MAPPING });
+
+    await connectAndLoadMonth();
+    expect(screen.getByRole('progressbar', { name: /^Groceries:/ })).toBeInTheDocument();
+  });
+
+  test('opens and closes the options menu with escape and outside interaction', async () => {
+    installHappyPathFetch();
+    const user = userEvent.setup();
+    render(<App />);
+
+    await screen.findByLabelText('Your plan');
+    const trigger = screen.getByRole('button', { name: 'More options' });
+    await user.click(trigger);
+    expect(screen.getByRole('region', { name: 'More options' })).toBeInTheDocument();
+
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('region', { name: 'More options' })).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+
+    await user.click(trigger);
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole('region', { name: 'More options' })).not.toBeInTheDocument();
+  });
+
+  test('renders one green combined-budget bar with spent and available portions', async () => {
+    installHappyPathFetch({ mapping: GROCERIES_MAPPING });
+    const user = userEvent.setup();
+
+    await connectAndLoadMonth();
+    await user.click(screen.getByRole('button', { name: 'More options' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Show progress bars' }));
+
+    const progress = screen.getByRole('progressbar', {
+      name: 'Groceries: Spent $323.45 of $950.00. $323.45 spent and $626.55 available.',
+    });
+    expect(progress).toHaveAttribute('aria-valuemax', '950000');
+    expect(progress).toHaveAttribute('aria-valuenow', '323450');
+    const segments = progress.querySelectorAll('.category-progress-segment');
+    expect(segments).toHaveLength(2);
+    expect(Number.parseFloat(segments[0].style.width)).toBeCloseTo((323450 / 950000) * 100, 3);
+    expect(Number.parseFloat(segments[1].style.width)).toBeCloseTo((626550 / 950000) * 100, 3);
+    expect(segments[0]).toHaveClass('category-progress-segment-spent');
+    expect(segments[1]).toHaveClass('category-progress-segment-available');
+    expect(screen.getByText('Spent $323.45 of $950.00')).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Progress bar legend' })).not.toBeInTheDocument();
   });
 
   test('requires the shared password before loading budget data', async () => {
@@ -211,7 +279,6 @@ describe('WNAB app', () => {
 
     const row = screen.getByRole('row', { name: /Groceries/ });
     expect(within(row).getByText('$950.00')).toBeInTheDocument();
-    expect(within(row).getByText('-$323.45')).toBeInTheDocument();
     expect(within(row).getByText('$626.55')).toBeInTheDocument();
   });
 
@@ -226,21 +293,14 @@ describe('WNAB app', () => {
     expect(screen.getByText(/excluded until mapped/i)).toBeInTheDocument();
   });
 
-  test('shows each plan assigned total and percentage of the mapped total', async () => {
+  test('keeps the main summary combined and excludes activity and per-plan totals', async () => {
     installHappyPathFetch({ mapping: GROCERIES_MAPPING });
 
     await connectAndLoadMonth();
 
-    const contributions = screen.getByRole('region', { name: 'Assigned by plan' });
-    expect(within(contributions).getByText('Alex Plan')).toBeInTheDocument();
-    expect(within(contributions).getByText('$450.00')).toBeInTheDocument();
-    expect(within(contributions).getByText('47.4%')).toBeInTheDocument();
-    expect(within(contributions).getByText('Blair Plan')).toBeInTheDocument();
-    expect(within(contributions).getByText('$500.00')).toBeInTheDocument();
-    expect(within(contributions).getByText('52.6%')).toBeInTheDocument();
-    expect(within(contributions).getByRole('progressbar', {
-      name: 'Alex Plan contributes 47.4% of assigned total',
-    })).toBeInTheDocument();
+    expect(screen.getByText('Combined Available')).toBeInTheDocument();
+    expect(screen.queryByText('Assigned by plan')).not.toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Activity' })).not.toBeInTheDocument();
   });
 
   test('renders a friendly access-token error for 401 YNAB envelopes', async () => {
@@ -267,11 +327,10 @@ describe('WNAB app', () => {
 
     const row = screen.getByRole('row', { name: /Groceries/ });
     expect(within(row).getByText('$950.00')).toBeInTheDocument();
-    expect(within(row).getByText('-$323.45')).toBeInTheDocument();
     expect(within(row).getByText('$626.55')).toBeInTheDocument();
   });
 
-  test('expands a shared category into per-plan assigned, activity, and available amounts', async () => {
+  test('expands a shared category into per-plan assigned and available amounts', async () => {
     installHappyPathFetch({ mapping: GROCERIES_MAPPING });
     const user = userEvent.setup();
 
@@ -282,12 +341,12 @@ describe('WNAB app', () => {
     const breakdown = screen.getByRole('region', { name: 'Plan breakdown for Groceries' });
     expect(within(breakdown).getByText('Alex Plan')).toBeInTheDocument();
     expect(within(breakdown).getByText('$450.00')).toHaveAttribute('data-label', 'Assigned');
-    expect(within(breakdown).getByText('-$123.45')).toHaveAttribute('data-label', 'Activity');
     expect(within(breakdown).getByText('Blair Plan')).toBeInTheDocument();
     expect(within(breakdown).getByText('$500.00')).toBeInTheDocument();
-    expect(within(breakdown).getByText('-$200.00')).toBeInTheDocument();
     expect(within(breakdown).getByText('$326.55').parentElement).toHaveAttribute('data-label', 'Available');
     expect(within(breakdown).getByText('$300.00')).toBeInTheDocument();
+    expect(within(breakdown).queryByText('-$123.45')).not.toBeInTheDocument();
+    expect(within(breakdown).queryByText('-$200.00')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hide plan breakdown for Groceries' })).toHaveAttribute('aria-expanded', 'true');
   });
 
@@ -338,6 +397,7 @@ describe('WNAB app', () => {
     const user = userEvent.setup();
 
     await connectAndLoadMonth();
+    await user.click(screen.getByRole('button', { name: 'More options' }));
     await user.click(screen.getByRole('button', { name: 'Sign out' }));
 
     expect(await screen.findByRole('heading', { name: 'Enter shared password' })).toBeInTheDocument();

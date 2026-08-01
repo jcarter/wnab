@@ -18,6 +18,7 @@ import {
 const appStorage = createAppStorageClient();
 const authClient = createAuthClient();
 const THEME_STORAGE_KEY = 'wnab.theme.v1';
+const PROGRESS_BARS_STORAGE_KEY = 'wnab.showProgressBars.v1';
 const MONTH_STORAGE_PREFIX = 'wnab.selectedMonth.v1';
 const VALID_THEMES = new Set(['system', 'light', 'dark']);
 
@@ -27,6 +28,14 @@ function getStoredTheme() {
     return VALID_THEMES.has(storedTheme) ? storedTheme : 'system';
   } catch {
     return 'system';
+  }
+}
+
+function getStoredProgressBars() {
+  try {
+    return globalThis.localStorage?.getItem(PROGRESS_BARS_STORAGE_KEY) === 'true';
+  } catch {
+    return false;
   }
 }
 
@@ -85,6 +94,8 @@ function BrandMark() {
 
 export default function App() {
   const [theme, setTheme] = useState(getStoredTheme);
+  const [showProgressBars, setShowProgressBars] = useState(getStoredProgressBars);
+  const [isOptionsOpen, setIsOptionsOpen] = useState(false);
   const [authState, setAuthState] = useState('checking');
   const [authConfigured, setAuthConfigured] = useState(true);
   const [authLoading, setAuthLoading] = useState(false);
@@ -104,6 +115,8 @@ export default function App() {
   const [retryStep, setRetryStep] = useState(null);
   const [activeView, setActiveView] = useState('budget');
   const hasStarted = useRef(false);
+  const optionsMenuRef = useRef(null);
+  const optionsTriggerRef = useRef(null);
 
   const leftPlan = findPlan(plans, leftPlanId);
   const rightPlan = findPlan(plans, rightPlanId);
@@ -134,6 +147,35 @@ export default function App() {
       // The selected theme still applies while this tab is open.
     }
   }, [theme]);
+
+  useEffect(() => {
+    try {
+      globalThis.localStorage?.setItem(PROGRESS_BARS_STORAGE_KEY, String(showProgressBars));
+    } catch {
+      // The selected view still applies while this tab is open.
+    }
+  }, [showProgressBars]);
+
+  useEffect(() => {
+    if (!isOptionsOpen) return undefined;
+
+    function closeOnOutsideInteraction(event) {
+      if (!optionsMenuRef.current?.contains(event.target)) setIsOptionsOpen(false);
+    }
+
+    function closeOnEscape(event) {
+      if (event.key !== 'Escape') return;
+      setIsOptionsOpen(false);
+      optionsTriggerRef.current?.focus();
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsideInteraction);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideInteraction);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [isOptionsOpen]);
 
   useEffect(() => {
     if (hasStarted.current) return;
@@ -344,6 +386,10 @@ export default function App() {
     setTheme(event.target.value);
   }
 
+  function handleProgressBarsChange(event) {
+    setShowProgressBars(event.target.checked);
+  }
+
   async function handleLogin(password) {
     setAuthLoading(true);
     setAuthError('');
@@ -437,17 +483,39 @@ export default function App() {
             <span>Combined available</span>
           </div>
         ) : null}
-        <div className="header-meta">
-          <label className="theme-picker">
-            <span className="sr-only">Theme</span>
-            <select aria-label="Theme" value={theme} onChange={handleThemeChange}>
-              <option value="system">System</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </label>
-          <span className="privacy-badge">{isConnected ? '2 plans connected' : 'Read only'}</span>
-          <button type="button" className="change-connection-button" onClick={handleLogout}>Sign out</button>
+        <div className="header-meta" ref={optionsMenuRef}>
+          <button
+            ref={optionsTriggerRef}
+            type="button"
+            className="header-options-trigger"
+            aria-label="More options"
+            aria-expanded={isOptionsOpen}
+            aria-controls="header-options-menu"
+            onClick={() => setIsOptionsOpen((isOpen) => !isOpen)}
+          >
+            <span aria-hidden="true">•••</span>
+          </button>
+          {isOptionsOpen ? (
+            <section id="header-options-menu" className="header-options-menu" aria-label="More options">
+              <label className="options-field">
+                <span>Theme</span>
+                <select aria-label="Theme" value={theme} onChange={handleThemeChange}>
+                  <option value="system">System</option>
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                </select>
+              </label>
+              <label className="options-toggle">
+                <input
+                  type="checkbox"
+                  checked={showProgressBars}
+                  onChange={handleProgressBarsChange}
+                />
+                <span>Show progress bars</span>
+              </label>
+              <button type="button" className="options-signout" onClick={handleLogout}>Sign out</button>
+            </section>
+          ) : null}
         </div>
       </header>
 
@@ -521,6 +589,7 @@ export default function App() {
                   currencyFormat={currencyFormat}
                   selectedMonth={selectedMonth}
                   onOpenMapping={() => setActiveView('mapping')}
+                  showProgressBars={showProgressBars}
                 />
               )}
             </>
