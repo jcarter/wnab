@@ -132,7 +132,6 @@ export function UnifiedBudgetTable({
   aggregate,
   currencyFormat,
   selectedMonth,
-  onOpenMapping,
   showProgressBars = false,
 }) {
   const [expandedRowIds, setExpandedRowIds] = useState([]);
@@ -192,17 +191,6 @@ export function UnifiedBudgetTable({
 
       <div className="budget-layout">
         <div className="budget-main">
-          <div className="budget-toolbar">
-            <button type="button" className="mapping-link" onClick={onOpenMapping}>
-              <span aria-hidden="true">⌘</span>
-              Map categories
-            </button>
-            <div className="view-switch" aria-label="Budget view">
-              <span aria-hidden="true">☷</span>
-              <span className="view-switch-active" aria-hidden="true">≡</span>
-            </div>
-          </div>
-
           <div className="table-wrap">
             {visibleRows.length > 0 ? (
               <table className={`budget-table${showProgressBars ? ' budget-table-with-progress' : ''}`}>
@@ -312,10 +300,9 @@ export function UnifiedBudgetTable({
                 <h3>{aggregate.rows.length === 0 ? 'No shared categories yet' : 'No categories match this filter'}</h3>
                 <p>
                   {aggregate.rows.length === 0
-                    ? 'Map matching categories below to start building your combined view.'
+                    ? 'Open Settings to map matching categories and build your combined view.'
                     : 'Choose another filter to see your shared categories.'}
                 </p>
-                {aggregate.rows.length === 0 ? <button type="button" className="text-button" onClick={onOpenMapping}>Create a mapping</button> : null}
               </div>
             )}
           </div>
@@ -335,7 +322,6 @@ export function UnifiedBudgetTable({
               <strong>{coverage}% mapped</strong>
               <span>{mappedSourceCount} of {totalSourceCount} source categories</span>
             </div>
-            <button type="button" className="review-mapping-button" onClick={onOpenMapping}>Review mapping <span aria-hidden="true">›</span></button>
           </section>
 
           <section className="summary-panel unmapped-section" aria-labelledby="unmapped-heading">

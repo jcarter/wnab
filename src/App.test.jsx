@@ -104,10 +104,19 @@ function installHappyPathFetch(options) {
 async function connectAndLoadMonth() {
   render(<App />);
 
-  expect(await screen.findByLabelText('Your plan')).toHaveValue('plan-a');
-  expect(screen.getByLabelText('Partner plan')).toHaveValue('plan-b');
   expect(await screen.findByRole('button', { name: 'Choose month, June 2026' })).toBeInTheDocument();
   expect(await screen.findByText('Unmapped source categories')).toBeInTheDocument();
+}
+
+async function openSettings(user) {
+  await user.click(screen.getByRole('button', { name: 'More options' }));
+  await user.click(screen.getByRole('button', { name: 'Settings' }));
+  expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+}
+
+async function openMapping(user) {
+  await openSettings(user);
+  await user.click(screen.getByRole('button', { name: 'Map categories' }));
 }
 
 beforeEach(() => {
@@ -129,7 +138,7 @@ describe('WNAB app', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await screen.findByLabelText('Your plan');
+    await screen.findByRole('button', { name: 'Choose month, June 2026' });
     await user.click(screen.getByRole('button', { name: 'More options' }));
     const themePicker = screen.getByLabelText('Theme');
     expect(themePicker).toHaveValue('system');
@@ -175,7 +184,7 @@ describe('WNAB app', () => {
     const user = userEvent.setup();
     render(<App />);
 
-    await screen.findByLabelText('Your plan');
+    await screen.findByRole('button', { name: 'Choose month, June 2026' });
     const trigger = screen.getByRole('button', { name: 'More options' });
     await user.click(trigger);
     expect(screen.getByRole('region', { name: 'More options' })).toBeInTheDocument();
@@ -226,7 +235,7 @@ describe('WNAB app', () => {
 
     await user.type(screen.getByLabelText('Application password'), 'shared-password');
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
-    expect(await screen.findByLabelText('Your plan')).toHaveValue('plan-a');
+    expect(await screen.findByRole('button', { name: 'Choose month, June 2026' })).toBeInTheDocument();
   });
 
   test('restores the chosen month from localStorage for the shared selected budgets', async () => {
@@ -263,18 +272,34 @@ describe('WNAB app', () => {
       .toBe('2026-06-01');
   });
 
+  test('keeps plan selection and category mapping in Settings and removes refresh from the budget', async () => {
+    installHappyPathFetch();
+    const user = userEvent.setup();
+
+    await connectAndLoadMonth();
+    expect(screen.queryByLabelText('Your plan')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Map categories' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Refresh connection' })).not.toBeInTheDocument();
+
+    await openSettings(user);
+    expect(screen.getByLabelText('Your plan')).toHaveValue('plan-a');
+    expect(screen.getByLabelText('Partner plan')).toHaveValue('plan-b');
+    expect(screen.getByRole('button', { name: 'Map categories' })).toBeInTheDocument();
+  });
+
   test('creates a Groceries mapping and renders combined budget totals from mocked endpoints', async () => {
     installHappyPathFetch();
     const user = userEvent.setup();
 
     await connectAndLoadMonth();
-    await user.click(screen.getByRole('button', { name: 'Map categories' }));
+    await openMapping(user);
 
     await user.type(screen.getByLabelText('Group name'), 'Living Expenses');
     await user.type(screen.getByLabelText('Unified category name'), 'Groceries');
     await user.click(screen.getByLabelText('Alex Plan › Everyday › Groceries'));
     await user.click(screen.getByLabelText('Blair Plan › Daily Life › Food'));
     await user.click(screen.getByRole('button', { name: 'Add unified category' }));
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
     await user.click(screen.getByRole('button', { name: 'Budget' }));
 
     const row = screen.getByRole('row', { name: /Groceries/ });
@@ -409,15 +434,18 @@ describe('WNAB app', () => {
     const user = userEvent.setup();
 
     await connectAndLoadMonth();
-    await user.click(screen.getByRole('button', { name: 'Map categories' }));
+    await openMapping(user);
 
     expect(screen.getByRole('heading', { name: 'Map categories' })).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: 'Category' })).not.toBeInTheDocument();
     expect(screen.queryByLabelText('Your plan')).not.toBeInTheDocument();
 
+    await user.click(screen.getByRole('button', { name: 'Settings' }));
+    expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Your plan')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Budget' }));
     expect(screen.getByRole('columnheader', { name: 'Category' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Your plan')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Your plan')).not.toBeInTheDocument();
   });
 
   test('reorders top-level mapped categories with the keyboard and persists the order', async () => {
@@ -437,7 +465,7 @@ describe('WNAB app', () => {
     const user = userEvent.setup();
 
     await connectAndLoadMonth();
-    await user.click(screen.getByRole('button', { name: 'Map categories' }));
+    await openMapping(user);
     const groceriesHandle = screen.getByRole('button', {
       name: 'Reorder Living Expenses / Groceries. Drag or use arrow keys.',
     });
@@ -480,7 +508,7 @@ describe('WNAB app', () => {
     const user = userEvent.setup();
 
     await connectAndLoadMonth();
-    await user.click(screen.getByRole('button', { name: 'Map categories' }));
+    await openMapping(user);
     const groceriesHandle = screen.getByRole('button', {
       name: 'Reorder Living Expenses / Groceries. Drag or use arrow keys.',
     });

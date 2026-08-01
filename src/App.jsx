@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HeaderMonthPicker } from './components/HeaderMonthPicker.jsx';
-import { PlanMonthSelector } from './components/PlanMonthSelector.jsx';
 import { MappingEditor } from './components/MappingEditor.jsx';
+import { SettingsView } from './components/SettingsView.jsx';
 import { UnifiedBudgetTable } from './components/UnifiedBudgetTable.jsx';
 import { StatusMessage } from './components/StatusMessage.jsx';
 import { PasswordGate } from './components/PasswordGate.jsx';
@@ -333,14 +333,12 @@ export default function App() {
 
   async function handleLeftPlanChange(planId) {
     setLeftPlanId(planId);
-    setActiveView('budget');
     persistSelectedBudgets({ leftPlanId: planId, rightPlanId });
     await loadMonthsForPair(client, planId, rightPlanId);
   }
 
   async function handleRightPlanChange(planId) {
     setRightPlanId(planId);
-    setActiveView('budget');
     persistSelectedBudgets({ leftPlanId, rightPlanId: planId });
     await loadMonthsForPair(client, leftPlanId, planId);
   }
@@ -497,6 +495,16 @@ export default function App() {
           </button>
           {isOptionsOpen ? (
             <section id="header-options-menu" className="header-options-menu" aria-label="More options">
+              <button
+                type="button"
+                className="options-navigation"
+                onClick={() => {
+                  setActiveView('settings');
+                  setIsOptionsOpen(false);
+                }}
+              >
+                <span>Settings</span><span aria-hidden="true">›</span>
+              </button>
               <label className="options-field">
                 <span>Theme</span>
                 <select aria-label="Theme" value={theme} onChange={handleThemeChange}>
@@ -558,20 +566,6 @@ export default function App() {
         <div className="workspace">
           {activeView === 'budget' ? (
             <>
-              <PlanMonthSelector
-                plans={plans}
-                leftPlanId={leftPlanId}
-                rightPlanId={rightPlanId}
-                onLeftPlanChange={handleLeftPlanChange}
-                onRightPlanChange={handleRightPlanChange}
-                loading={loadingStep === 'month' || loadingStep === 'months'}
-              />
-
-              <div className="connection-actions">
-                <span className="connection-state">Connected through the server</span>
-                <button type="button" className="change-connection-button" onClick={handleConnect}>Refresh connection</button>
-              </div>
-
               <StatusMessage type={status?.type} onRetry={retryStep ? handleRetry : null}>
                 {status?.message}
               </StatusMessage>
@@ -588,10 +582,25 @@ export default function App() {
                   aggregate={aggregate}
                   currencyFormat={currencyFormat}
                   selectedMonth={selectedMonth}
-                  onOpenMapping={() => setActiveView('mapping')}
                   showProgressBars={showProgressBars}
                 />
               )}
+            </>
+          ) : activeView === 'settings' ? (
+            <>
+              <StatusMessage type={status?.type} onRetry={retryStep ? handleRetry : null}>
+                {status?.message}
+              </StatusMessage>
+              <SettingsView
+                plans={plans}
+                leftPlanId={leftPlanId}
+                rightPlanId={rightPlanId}
+                onLeftPlanChange={handleLeftPlanChange}
+                onRightPlanChange={handleRightPlanChange}
+                onOpenMapping={() => setActiveView('mapping')}
+                onBack={() => setActiveView('budget')}
+                loading={loadingStep === 'month' || loadingStep === 'months'}
+              />
             </>
           ) : (
             <>
@@ -604,7 +613,7 @@ export default function App() {
                 planIds={selectedPlanIds}
                 onMappingChange={handleMappingChange}
                 onMessage={handleMappingMessage}
-                onBack={() => setActiveView('budget')}
+                onBack={() => setActiveView('settings')}
               />
             </>
           )}

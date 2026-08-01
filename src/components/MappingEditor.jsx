@@ -206,7 +206,7 @@ export function MappingEditor({ sourceCategories, mapping, planIds, onMappingCha
   return (
     <section className="mapping-editor" aria-labelledby="mapping-heading">
       <div className="section-heading-row">
-        <button type="button" className="back-to-budget" onClick={onBack}><span aria-hidden="true">‹</span> Budget</button>
+        <button type="button" className="back-to-budget" onClick={onBack}><span aria-hidden="true">‹</span> Settings</button>
         <div className="section-heading">
           <div>
             <h2 id="mapping-heading">Map categories</h2>
