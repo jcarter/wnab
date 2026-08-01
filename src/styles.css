@@ -1134,6 +1134,19 @@ summary:focus-visible {
   opacity: 1;
 }
 
+.budget-table .category-row-with-progress > * {
+  border-bottom: 0;
+}
+
+.budget-table-with-progress .category-row > * {
+  padding-top: 0.6rem;
+  padding-bottom: 0.15rem;
+}
+
+.budget-table-with-progress .category-row .category-toggle {
+  min-height: 32px;
+}
+
 .category-row-expanded > * {
   border-bottom-color: transparent;
 }
@@ -1200,12 +1213,8 @@ summary:focus-visible {
 }
 
 .breakdown-row > td {
-  padding: 0 1.5rem 0.75rem !important;
+  padding: 0.75rem 1.5rem !important;
   background: var(--surface-raised);
-}
-
-.category-progress-row + .breakdown-row > td {
-  padding-top: 0.75rem !important;
 }
 
 .plan-breakdown {
