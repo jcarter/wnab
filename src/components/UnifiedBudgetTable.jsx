@@ -136,6 +136,7 @@ export function UnifiedBudgetTable({
   showProgressBars = false,
 }) {
   const [expandedRowIds, setExpandedRowIds] = useState([]);
+  const [collapsedGroupNames, setCollapsedGroupNames] = useState([]);
   const [activeFilter, setActiveFilter] = useState('all');
   const mappedSourceCount = aggregate.rows.reduce((count, row) => count + row.sources.length, 0);
   const totalSourceCount = mappedSourceCount + aggregate.unmappedSources.length;
@@ -149,6 +150,14 @@ export function UnifiedBudgetTable({
   function toggleBreakdown(rowId) {
     setExpandedRowIds((current) =>
       current.includes(rowId) ? current.filter((id) => id !== rowId) : [...current, rowId],
+    );
+  }
+
+  function toggleGroup(groupName) {
+    setCollapsedGroupNames((current) =>
+      current.includes(groupName)
+        ? current.filter((name) => name !== groupName)
+        : [...current, groupName],
     );
   }
 
@@ -197,6 +206,11 @@ export function UnifiedBudgetTable({
           <div className="table-wrap">
             {visibleRows.length > 0 ? (
               <table className={`budget-table${showProgressBars ? ' budget-table-with-progress' : ''}`}>
+                <colgroup>
+                  <col className="category-column" />
+                  <col className="assigned-column" />
+                  <col className="available-column" />
+                </colgroup>
                 <thead>
                   <tr>
                     <th scope="col" id="budget-heading">Category</th>
@@ -204,17 +218,28 @@ export function UnifiedBudgetTable({
                     <th scope="col" className="money">Available</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {groupedRows(visibleRows).map(([groupName, rows]) => {
-                    const groupTotals = sumRows(rows);
-                    return (
-                      <Fragment key={groupName}>
+                {groupedRows(visibleRows).map(([groupName, rows]) => {
+                  const groupTotals = sumRows(rows);
+                  const isCollapsed = collapsedGroupNames.includes(groupName);
+                  return (
+                    <tbody key={groupName} className={`budget-group${isCollapsed ? ' budget-group-collapsed' : ''}`}>
                         <tr className="group-row">
-                          <th scope="rowgroup"><span className="row-chevron" aria-hidden="true">⌄</span>{groupName}</th>
+                          <th scope="rowgroup">
+                            <button
+                              type="button"
+                              className="group-toggle"
+                              aria-expanded={!isCollapsed}
+                              aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${groupName} group`}
+                              onClick={() => toggleGroup(groupName)}
+                            >
+                              <span className="group-chevron" aria-hidden="true" />
+                              <span>{groupName}</span>
+                            </button>
+                          </th>
                           <td className="money" data-label="Assigned">{formatMilliunits(groupTotals.budgeted, currencyFormat)}</td>
                           <td className="money" data-label="Available" data-progress-label="Available to Spend"><AvailableAmount value={groupTotals.available} currencyFormat={currencyFormat} /></td>
                         </tr>
-                        {rows.map((row) => {
+                        {!isCollapsed ? rows.map((row) => {
                           const planBreakdown = groupSourcesByPlan(row.sources);
                           const isExpanded = expandedRowIds.includes(row.id);
                           const breakdownId = `plan-breakdown-${row.id}`;
@@ -270,11 +295,10 @@ export function UnifiedBudgetTable({
                               ) : null}
                             </Fragment>
                           );
-                        })}
-                      </Fragment>
-                    );
-                  })}
-                </tbody>
+                        }) : null}
+                    </tbody>
+                  );
+                })}
                 <tfoot>
                   <tr>
                     <th scope="row" data-label="Category">Totals</th>

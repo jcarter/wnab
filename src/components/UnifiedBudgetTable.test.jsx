@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, test, vi } from 'vitest';
 import { UnifiedBudgetTable } from './UnifiedBudgetTable.jsx';
 import { USD_FORMAT } from '../test/fixtures/ynabResponses.js';
@@ -175,5 +176,49 @@ describe('UnifiedBudgetTable progress bars', () => {
     });
     expect(emptyProgress).not.toHaveAttribute('aria-valuemax');
     expect(emptyProgress).not.toHaveAttribute('aria-valuenow');
+  });
+});
+
+describe('UnifiedBudgetTable category groups', () => {
+  test('collapses and expands a category group without affecting the other groups', async () => {
+    const user = userEvent.setup();
+    const groupedAggregate = {
+      ...OVESPENT_AGGREGATE,
+      rows: [
+        OVESPENT_AGGREGATE.rows[0],
+        {
+          ...OVESPENT_AGGREGATE.rows[0],
+          id: 'shared-rent',
+          groupName: 'Bills',
+          name: 'Rent',
+        },
+      ],
+      totals: { budgeted: 200000, activity: -320000, available: -120000 },
+    };
+
+    render(
+      <UnifiedBudgetTable
+        aggregate={groupedAggregate}
+        currencyFormat={USD_FORMAT}
+        selectedMonth="2026-06-01"
+        onOpenMapping={vi.fn()}
+      />,
+    );
+
+    const everydayToggle = screen.getByRole('button', { name: 'Collapse Everyday group' });
+    expect(everydayToggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Show plan breakdown for Dining' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show plan breakdown for Rent' })).toBeInTheDocument();
+
+    await user.click(everydayToggle);
+
+    expect(screen.getByRole('button', { name: 'Expand Everyday group' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('button', { name: 'Show plan breakdown for Dining' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show plan breakdown for Rent' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Expand Everyday group' }));
+
+    expect(screen.getByRole('button', { name: 'Collapse Everyday group' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Show plan breakdown for Dining' })).toBeInTheDocument();
   });
 });

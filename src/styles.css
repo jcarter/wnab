@@ -967,6 +967,15 @@ summary:focus-visible {
   font-size: 0.78rem;
 }
 
+.budget-table .category-column {
+  width: 56%;
+}
+
+.budget-table .assigned-column,
+.budget-table .available-column {
+  width: 22%;
+}
+
 .budget-table th,
 .budget-table td {
   border-bottom: 1px solid var(--border);
@@ -997,24 +1006,66 @@ summary:focus-visible {
   padding-right: 1.5rem;
 }
 
-.budget-table th:first-child {
-  width: 56%;
-}
-
 .budget-table .money {
+  font-feature-settings: "tnum" 1;
   font-variant-numeric: tabular-nums;
   text-align: right;
   white-space: nowrap;
 }
 
 .budget-table .group-row > * {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   height: 46px;
   background: var(--surface-muted);
+  box-shadow: 0 1px 0 var(--border);
   font-weight: 700;
 }
 
 .budget-table .group-row th {
   text-align: left;
+}
+
+.group-toggle {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  align-items: center;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  font-weight: inherit;
+  line-height: 1.15;
+  text-align: left;
+  padding: 0;
+}
+
+.group-chevron {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+  margin-right: 0.35rem;
+  color: var(--text-muted);
+}
+
+.group-chevron::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.48rem;
+  height: 0.48rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  content: "";
+  transform: translate(-50%, -65%) rotate(45deg);
+  transition: transform 150ms ease;
+}
+
+.group-toggle[aria-expanded="false"] .group-chevron::before {
+  transform: translate(-65%, -50%) rotate(-45deg);
 }
 
 .row-chevron {
@@ -1135,22 +1186,27 @@ summary:focus-visible {
 
 .plan-breakdown {
   overflow: hidden;
+  margin-right: -1.5rem;
   border: 1px solid #cdd2ff;
-  border-radius: 8px;
+  border-radius: 8px 0 0 8px;
   background: var(--surface-accent);
 }
 
 .plan-breakdown-line {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) repeat(2, minmax(85px, 0.48fr));
+  grid-template-columns: 26px minmax(0, 1fr) minmax(85px, 22%) minmax(85px, calc(22% - 0.155rem));
   gap: 0.5rem;
   align-items: center;
   min-height: 52px;
-  padding: 0.5rem 0.75rem 0.5rem 1rem;
+  padding: 0.5rem 1.5rem 0.5rem 1rem;
 }
 
 .plan-breakdown-line + .plan-breakdown-line {
   border-top: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+}
+
+.plan-breakdown-line .breakdown-available .available-amount {
+  transform: translateX(1px);
 }
 
 .plan-initial {
@@ -1991,8 +2047,13 @@ summary:focus-visible {
     padding: 1rem;
   }
 
-  .budget-table th:first-child {
+  .budget-table .category-column {
     width: 50%;
+  }
+
+  .budget-table .assigned-column,
+  .budget-table .available-column {
+    width: 25%;
   }
 
   .budget-table th,
@@ -2012,8 +2073,13 @@ summary:focus-visible {
     padding-right: 1rem;
   }
 
+  .breakdown-row > td {
+    padding-inline: 1rem !important;
+  }
+
   .plan-breakdown-line {
-    grid-template-columns: 24px minmax(0, 1fr) repeat(2, minmax(70px, 0.48fr));
+    grid-template-columns: 24px minmax(0, 1fr) minmax(70px, 25%) minmax(70px, calc(25% - 0.13rem));
+    padding-right: 1rem;
   }
 
   .mapping-builder,
@@ -2101,30 +2167,50 @@ summary:focus-visible {
     width: 100%;
   }
 
+  .budget-table {
+    --budget-assigned-column: minmax(5.75rem, 22%);
+    --budget-available-column: minmax(6.75rem, 25%);
+    --budget-column-gap: 1rem;
+    --budget-inline-padding: 1rem;
+  }
+
+  .budget-table colgroup {
+    display: none;
+  }
+
   .budget-table thead {
     display: none;
   }
 
   .budget-table .group-row {
+    position: sticky;
+    top: 0;
+    z-index: 3;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(5.75rem, auto));
+    grid-template-columns: minmax(0, 1fr) var(--budget-assigned-column) var(--budget-available-column);
+    column-gap: var(--budget-column-gap);
     min-height: 46px;
     align-items: center;
     border-bottom: 1px solid var(--border);
     background: var(--surface-muted);
-    padding: 0 1rem;
+    box-shadow: 0 1px 0 var(--border);
+    padding: 0 var(--budget-inline-padding);
   }
 
   .budget-table .group-row > * {
+    position: static;
+    z-index: auto;
     display: grid;
     height: auto;
     align-items: center;
     border: 0;
     background: transparent;
+    box-shadow: none;
     padding: 0;
   }
 
   .budget-table .group-row > td {
+    justify-self: stretch;
     justify-items: end;
     text-align: right;
   }
@@ -2149,20 +2235,30 @@ summary:focus-visible {
     content: attr(data-progress-label);
   }
 
-  .budget-table .group-row .row-chevron {
+  .budget-table .group-row .row-chevron,
+  .budget-table .group-chevron {
     width: 20px;
     margin-right: 0.25rem;
+  }
+
+  .budget-table .group-chevron {
+    height: 20px;
+  }
+
+  .budget-table .group-toggle {
+    min-height: 44px;
+    font-size: 0.82rem;
   }
 
   .budget-table .category-row,
   .budget-table tfoot tr {
     display: grid;
     grid-template-areas: "category assigned available";
-    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(5.75rem, auto));
-    column-gap: 1rem;
+    grid-template-columns: minmax(0, 1fr) var(--budget-assigned-column) var(--budget-available-column);
+    column-gap: var(--budget-column-gap);
     row-gap: 0;
     border-bottom: 1px solid var(--border);
-    padding: 0.75rem 1rem 0.8rem;
+    padding: 0.75rem var(--budget-inline-padding) 0.8rem;
   }
 
   .budget-table .category-row-with-progress,
@@ -2192,18 +2288,22 @@ summary:focus-visible {
   .budget-table .category-row > td:nth-of-type(1),
   .budget-table tfoot tr > td:nth-of-type(1) {
     grid-area: assigned;
+    align-self: center;
+    justify-self: stretch;
+    text-align: right;
   }
 
   .budget-table .category-row > td:nth-of-type(2),
   .budget-table tfoot tr > td:nth-of-type(2) {
     grid-area: available;
     align-self: center;
-    justify-self: end;
+    justify-self: stretch;
+    justify-items: end;
   }
 
   .budget-table .category-row .money,
   .budget-table tfoot tr .money {
-    text-align: left;
+    text-align: right;
   }
 
   .budget-table-with-progress .category-row,
@@ -2281,20 +2381,24 @@ summary:focus-visible {
 
   .breakdown-row > td {
     display: block;
-    padding: 0 0.8rem 0.65rem !important;
+    padding: 0 var(--budget-inline-padding) 0.65rem !important;
+  }
+
+  .plan-breakdown {
+    margin-right: 0;
+    border-radius: 8px;
   }
 
   .plan-breakdown-line {
-    grid-template-areas:
-      "initial source available"
-      ". assigned .";
-    grid-template-columns: 24px minmax(0, 1fr) auto;
-    gap: 0.55rem 0.45rem;
-    padding: 0.7rem;
+    grid-template-areas: "initial source assigned available";
+    grid-template-columns: 2.25rem minmax(0, 1fr) var(--budget-assigned-column) var(--budget-available-column);
+    column-gap: var(--budget-column-gap);
+    padding: 0.7rem 0;
   }
 
   .plan-breakdown-line .plan-initial {
     grid-area: initial;
+    justify-self: center;
   }
 
   .plan-breakdown-line .plan-source {
@@ -2303,13 +2407,15 @@ summary:focus-visible {
 
   .plan-breakdown-line .breakdown-assigned {
     grid-area: assigned;
-    justify-self: start;
+    justify-self: stretch;
   }
 
   .plan-breakdown-line .breakdown-available {
     grid-area: available;
     align-self: center;
-    justify-self: end;
+    justify-self: stretch;
+    justify-items: end;
+    padding-right: 0;
   }
 
   .plan-breakdown-line > .money {
@@ -2390,11 +2496,10 @@ summary:focus-visible {
 }
 
 @media (max-width: 360px) {
-  .budget-table:not(.budget-table-with-progress) .group-row,
-  .budget-table:not(.budget-table-with-progress) .category-row,
-  .budget-table:not(.budget-table-with-progress) tfoot tr {
-    grid-template-columns: minmax(0, 1fr) repeat(2, minmax(4.5rem, auto));
-    column-gap: 0.5rem;
+  .budget-table {
+    --budget-assigned-column: 5rem;
+    --budget-available-column: 5.5rem;
+    --budget-column-gap: 0.5rem;
   }
 
   .budget-table:not(.budget-table-with-progress) .category-toggle {
