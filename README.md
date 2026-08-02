@@ -1,16 +1,39 @@
 # WNAB (We Need a Budget)
 
-![WNAB dashboard with placeholder data](docs/wnab-dashboard.jpg)
+<table>
+  <tr>
+    <td align="center">
+      <img src="docs/wnab-budget-light-desktop.jpg" alt="Light-mode desktop budget with progress bars hidden and the Groceries breakdown expanded">
+      <br><sub><strong>Light desktop · Progress bars off</strong></sub>
+    </td>
+    <td align="center">
+      <img src="docs/wnab-budget-dark-mobile-cropped.jpg" alt="Cropped dark-mode mobile budget with progress bars shown and the Groceries breakdown expanded">
+      <br><sub><strong>Dark mobile · Progress bars on</strong></sub>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <img src="docs/wnab-category-mapping-light.jpg" alt="Light-mode category mapping screen">
+      <br><sub><strong>Category mapping · Light</strong></sub>
+    </td>
+    <td align="center">
+      <img src="docs/wnab-settings-dark.jpg" alt="Dark-mode settings screen with the options menu open">
+      <br><sub><strong>Settings menu · Dark</strong></sub>
+    </td>
+  </tr>
+</table>
 
-_Dashboard shown with placeholder data._
+## What is this?
 
-## What it does
+My partner and I needed a way to view our individual YNAB budgets combined into a single view. WNAB (We Need a Budget) is a read only dashboard that combines two YNAB budgets into a single view that looks similar to the YNAB app.
 
-WNAB (We Need a Budget) is a small shared, read-only YNAB dashboard that combines two selected plans through manual category mappings.
+## Features
+- Light/Dark mode
+- Manual mapping of categories from both plans into a single category. All the totals are summed up under it.
+- Progress bars
 
+## Data handling
 The browser talks only to the included Node server. The server proxies the small set of YNAB `GET` endpoints the app needs, so the YNAB Personal Access Token is never included in the frontend bundle or sent to the browser.
-
-## Privacy and data handling
 
 - `YNAB_ACCESS_TOKEN` is read from the server environment at runtime.
 - YNAB plan and budget responses are displayed but are not written to disk.
