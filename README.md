@@ -125,7 +125,3 @@ Sessions last seven days by default. Set `SESSION_TTL_HOURS` to change that dura
 ## Mapping backup
 
 Use **Export mapping** in the app to download a mapping backup. Use **Import mapping** to restore a mapping for the same selected plan pair. The app's server-side data file can also be backed up directly while the server is stopped.
-
-## Progress tracking
-
-Future agents and developers must read and update `TASKS.md` before and after each implementation step.
