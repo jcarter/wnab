@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from './App.jsx';
@@ -122,7 +122,12 @@ async function openMapping(user) {
 beforeEach(() => {
   vi.restoreAllMocks();
   installStorage();
+  window.history.replaceState(null, '', '/');
   document.documentElement.removeAttribute('data-theme');
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('WNAB app', () => {
@@ -238,8 +243,8 @@ describe('WNAB app', () => {
     expect(await screen.findByRole('button', { name: 'Choose month, June 2026' })).toBeInTheDocument();
   });
 
-  test('restores the chosen month from localStorage for the shared selected budgets', async () => {
-    localStorage.setItem('wnab.selectedMonth.v1.plan-a__plan-b', '2026-05-01');
+  test('opens the month named in the URL', async () => {
+    window.history.replaceState(null, '', '/budget/202605');
     installHappyPathFetch({
       selectedBudgets: {
         leftPlanId: 'plan-a',
@@ -253,7 +258,81 @@ describe('WNAB app', () => {
     expect(await screen.findByText('Unmapped source categories')).toBeInTheDocument();
   });
 
-  test('shares the selected budgets but keeps their chosen month local', async () => {
+  test('defaults to the current shared month when no local choice has been saved', async () => {
+    class MayDate extends Date {
+      constructor(...args) {
+        super(...(args.length === 0 ? ['2026-05-15T12:00:00'] : args));
+      }
+    }
+    vi.stubGlobal('Date', MayDate);
+    installHappyPathFetch();
+
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: 'Choose month, May 2026' })).toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledWith(`${API_BASE}/plans/plan-a/months/2026-05-01`, expect.anything());
+    expect(window.location.pathname).toBe('/');
+  });
+
+  test('replaces an unavailable URL month with the latest shared month', async () => {
+    window.history.replaceState(null, '', '/budget/202001');
+    installHappyPathFetch();
+
+    render(<App />);
+
+    expect(await screen.findByRole('button', { name: 'Choose month, June 2026' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/budget/202606');
+  });
+
+  test('follows browser back and forward between months', async () => {
+    installHappyPathFetch();
+    const user = userEvent.setup();
+
+    await connectAndLoadMonth();
+    await user.click(screen.getByRole('button', { name: 'Choose month, June 2026' }));
+    await user.click(screen.getByRole('button', { name: 'May 2026' }));
+    expect(await screen.findByRole('button', { name: 'Choose month, May 2026' })).toBeInTheDocument();
+
+    window.history.back();
+    expect(await screen.findByRole('button', { name: 'Choose month, June 2026' })).toBeInTheDocument();
+
+    window.history.forward();
+    expect(await screen.findByRole('button', { name: 'Choose month, May 2026' })).toBeInTheDocument();
+  });
+
+  test('puts Settings and category mapping in the URL and follows back navigation', async () => {
+    installHappyPathFetch();
+    const user = userEvent.setup();
+
+    await connectAndLoadMonth();
+    await openSettings(user);
+    expect(window.location.pathname).toBe('/settings');
+
+    await user.click(screen.getByRole('button', { name: 'Map categories' }));
+    expect(window.location.pathname).toBe('/settings/map');
+
+    window.history.back();
+    expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: /Budget/ }));
+    expect(window.location.pathname).toBe('/budget/202606');
+    expect(await screen.findByRole('button', { name: 'Choose month, June 2026' })).toBeInTheDocument();
+  });
+
+  test.each([
+    ['/settings', 'Settings'],
+    ['/settings/map', 'Map categories'],
+  ])('opens %s directly', async (path, heading) => {
+    window.history.replaceState(null, '', path);
+    installHappyPathFetch();
+
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: heading })).toBeInTheDocument();
+    expect(window.location.pathname).toBe(path);
+  });
+
+  test('shares the selected budgets with the server and leaves the URL at the default', async () => {
     installHappyPathFetch();
 
     await connectAndLoadMonth();
@@ -268,8 +347,7 @@ describe('WNAB app', () => {
         },
       }),
     });
-    expect(localStorage.getItem('wnab.selectedMonth.v1.plan-a__plan-b'))
-      .toBe('2026-06-01');
+    expect(window.location.pathname).toBe('/');
   });
 
   test('keeps plan selection and category mapping in Settings and removes refresh from the budget', async () => {
@@ -413,8 +491,7 @@ describe('WNAB app', () => {
         expect.objectContaining({ method: 'GET' }),
       );
     });
-    expect(localStorage.getItem('wnab.selectedMonth.v1.plan-a__plan-b'))
-      .toBe('2026-05-01');
+    expect(window.location.pathname).toBe('/budget/202605');
   });
 
   test('signs out and returns to the password gate', async () => {

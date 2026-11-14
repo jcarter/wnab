@@ -9,6 +9,7 @@ import { createYnabClient, YnabApiError } from './api/ynabClient.js';
 import { createAppStorageClient } from './api/appStorageClient.js';
 import { createAuthClient } from './api/authClient.js';
 import { formatMilliunits } from './domain/formatMoney.js';
+import { monthFromPath, pathForMonth, pathForView, resolveMonth, viewFromPath } from './domain/routes.js';
 import {
   aggregateMappedCategories,
   getSelectableMonths,
@@ -19,7 +20,6 @@ const appStorage = createAppStorageClient();
 const authClient = createAuthClient();
 const THEME_STORAGE_KEY = 'wnab.theme.v1';
 const PROGRESS_BARS_STORAGE_KEY = 'wnab.showProgressBars.v1';
-const MONTH_STORAGE_PREFIX = 'wnab.selectedMonth.v1';
 const VALID_THEMES = new Set(['system', 'light', 'dark']);
 
 function getStoredTheme() {
@@ -63,27 +63,6 @@ function findPlan(plans, planId) {
   return plans.find((plan) => plan.id === planId) ?? null;
 }
 
-function getMonthStorageKey(planIds) {
-  return `${MONTH_STORAGE_PREFIX}.${[...planIds].sort().join('__')}`;
-}
-
-function getStoredMonth(planIds) {
-  try {
-    const month = globalThis.localStorage?.getItem(getMonthStorageKey(planIds));
-    return /^\d{4}-\d{2}-\d{2}$/.test(month ?? '') ? month : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveStoredMonth(planIds, month) {
-  try {
-    globalThis.localStorage?.setItem(getMonthStorageKey(planIds), month);
-  } catch {
-    // The selected month still applies while this tab is open.
-  }
-}
-
 function isAuthenticationError(error) {
   return error?.status === 401 && error?.name === 'app_error';
 }
@@ -113,7 +92,7 @@ export default function App() {
   const [status, setStatus] = useState(null);
   const [loadingStep, setLoadingStep] = useState(null);
   const [retryStep, setRetryStep] = useState(null);
-  const [activeView, setActiveView] = useState('budget');
+  const [activeView, setActiveView] = useState(() => viewFromPath(window.location.pathname));
   const hasStarted = useRef(false);
   const optionsMenuRef = useRef(null);
   const optionsTriggerRef = useRef(null);
@@ -197,6 +176,21 @@ export default function App() {
       });
   }, []);
 
+  useEffect(() => {
+    function syncFromUrl() {
+      const view = viewFromPath(window.location.pathname);
+      setActiveView(view);
+      if (view !== 'budget') return;
+      const month = resolveMonth(window.location.pathname, selectableMonths);
+      if (!month || month === selectedMonth) return;
+      setSelectedMonth(month);
+      loadMonthData(client, leftPlan, rightPlan, month);
+    }
+
+    window.addEventListener('popstate', syncFromUrl);
+    return () => window.removeEventListener('popstate', syncFromUrl);
+  });
+
   function setError(error, step) {
     if (isAuthenticationError(error)) {
       setAuthState('login');
@@ -266,8 +260,13 @@ export default function App() {
         apiClient.getPlanMonths(nextRightPlanId),
       ]);
       const sharedMonths = getSelectableMonths(leftData.months, rightData.months);
-      const preferredMonth = getStoredMonth([nextLeftPlanId, nextRightPlanId]);
-      const nextMonth = sharedMonths.includes(preferredMonth) ? preferredMonth : sharedMonths[0] ?? '';
+      const { pathname } = window.location;
+      const urlMonth = monthFromPath(pathname);
+      const budgetPath = viewFromPath(pathname) === 'budget' ? pathname : pathForView('budget', selectedMonth);
+      const nextMonth = resolveMonth(budgetPath, sharedMonths);
+      if (urlMonth && nextMonth && urlMonth !== nextMonth) {
+        window.history.replaceState(null, '', pathForMonth(nextMonth));
+      }
       setLeftMonths(leftData.months);
       setRightMonths(rightData.months);
       setSelectedMonth(nextMonth);
@@ -275,7 +274,6 @@ export default function App() {
         setStatus({ type: 'error', message: 'Selected plans have no shared months.' });
         return;
       }
-      saveStoredMonth([nextLeftPlanId, nextRightPlanId], nextMonth);
 
       const nextLeftPlan = findPlan(availablePlans, nextLeftPlanId);
       const nextRightPlan = findPlan(availablePlans, nextRightPlanId);
@@ -343,10 +341,15 @@ export default function App() {
     await loadMonthsForPair(client, leftPlanId, planId);
   }
 
+  function navigateTo(view, month = selectedMonth) {
+    const path = pathForView(view, month);
+    setActiveView(view);
+    if (window.location.pathname !== path) window.history.pushState(null, '', path);
+  }
+
   async function handleMonthSelect(month) {
     setSelectedMonth(month);
-    setActiveView('budget');
-    saveStoredMonth([leftPlanId, rightPlanId], month);
+    navigateTo('budget', month);
     await loadMonthData(client, leftPlan, rightPlan, month);
   }
 
@@ -417,6 +420,7 @@ export default function App() {
     setLoadingStep(null);
     setRetryStep(null);
     setActiveView('budget');
+    window.history.replaceState(null, '', '/');
   }
 
   async function handleLogout() {
@@ -499,7 +503,7 @@ export default function App() {
                 type="button"
                 className="options-navigation"
                 onClick={() => {
-                  setActiveView('settings');
+                  navigateTo('settings');
                   setIsOptionsOpen(false);
                 }}
               >
@@ -597,8 +601,8 @@ export default function App() {
                 rightPlanId={rightPlanId}
                 onLeftPlanChange={handleLeftPlanChange}
                 onRightPlanChange={handleRightPlanChange}
-                onOpenMapping={() => setActiveView('mapping')}
-                onBack={() => setActiveView('budget')}
+                onOpenMapping={() => navigateTo('mapping')}
+                onBack={() => navigateTo('budget')}
                 loading={loadingStep === 'month' || loadingStep === 'months'}
               />
             </>
@@ -613,7 +617,7 @@ export default function App() {
                 planIds={selectedPlanIds}
                 onMappingChange={handleMappingChange}
                 onMessage={handleMappingMessage}
-                onBack={() => setActiveView('settings')}
+                onBack={() => navigateTo('settings')}
               />
             </>
           )}
